@@ -8,9 +8,8 @@ For a demonstration of the original Amiga 500 keyboard in action, visit the [Ami
 
 ## Wiring Information
 
-This section describes the wiring for connecting the Amiga 500 keyboard to an Arduino Leonardo, including the functions of each special key, particularly when used with the **Help** key.
+This section describes the wiring for connecting the Amiga 500 keyboard to an Arduino Leonardo.
 
----
 To connect the Amiga 500 keyboard to the Arduino Leonardo, refer to the following table:
 
 | Connector Pin | Function | Wire Color | Arduino Leonardo IO Pin |
