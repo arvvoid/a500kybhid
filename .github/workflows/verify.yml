@@ -1,0 +1,29 @@
+name: Verify Arduino Sketch
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Arduino CLI
+      uses: arduino/setup-arduino-cli@v1
+      with:
+        version: latest
+
+    - name: Install Arduino core
+      run: |
+        arduino-cli core update-index
+        arduino-cli core install arduino:avr
+
+    - name: Install Keyboard library
+      run: |
+        arduino-cli lib install "Keyboard"
+
+    - name: Compile Sketch
+      run: |
+        arduino-cli compile --fqbn arduino:avr:leonardo Amiga500-USB-Keyboard-Leonardo.ino
