@@ -1,3 +1,5 @@
+[![Verify Arduino Sketch](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml/badge.svg)](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml)
+
 # Amiga 500 Keyboard - Arduino Leonardo
 
 Welcome to the Amiga 500 Keyboard interfacing project! This guide will help you connect and map the iconic Amiga 500 keyboard to an Arduino Leonardo, allowing you to bring new life to this classic piece of hardware. By following the instructions provided, you can retrofit the Amiga 500 keyboard for modern applications while preserving its unique layout and feel.
