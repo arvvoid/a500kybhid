@@ -1,4 +1,4 @@
-name: Verify Arduino Sketch
+name: Build Arduino Leonardo Kyb
 
 on: [push, pull_request]
 
