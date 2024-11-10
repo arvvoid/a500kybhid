@@ -24,4 +24,4 @@ jobs:
 
     - name: Compile Sketch
       run: |
-        arduino-cli compile --fqbn arduino:avr:leonardo Amiga500-USB-Keyboard-Leonardo.ino
+        arduino-cli compile --fqbn arduino:avr:leonardo --verify Amiga500-USB-Keyboard-Leonardo.ino
