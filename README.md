@@ -97,6 +97,102 @@ With **NumLock** turned **on**, these keys will function as standard numeric key
 
 This wiring and mapping setup allows the Amiga 500 keyboard to interface with the Arduino Leonardo effectively, bringing additional functionality with the **Help** key for multimedia and navigation control. The setup is ideal for retrofitting the keyboard for modern applications while retaining its unique layout and feel.
 
+# Build and Upload Guide
+
+This guide will help you compile and upload the Amiga 500 Keyboard converter code to an Arduino Leonardo. Choose between the **Arduino CLI** (for command-line users) or the **Arduino IDE** (beginner-friendly) to get started.
+
+---
+
+## Option 1: Arduino CLI (Command Line)
+
+This method is ideal for users comfortable with the command line. **Arduino CLI** allows for efficient building and uploading.
+
+### Requirements
+- Arduino Leonardo connected via USB
+- Arduino CLI installed
+
+### Steps
+
+1. **Install Arduino CLI:**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+   sudo mv bin/arduino-cli /usr/local/bin/
+   ```
+   
+2. **Configure Arduino CLI:**
+   ```bash
+   arduino-cli config init
+   arduino-cli core update-index
+   arduino-cli core install arduino:avr
+   arduino-cli lib install "Keyboard"
+   ```
+
+3. **Connect Arduino Leonardo via USB** and identify the port:
+   ```bash
+   arduino-cli board list
+   ```
+   - Note your board’s port (e.g., `/dev/ttyACM0`) and FQBN (`arduino:avr:leonardo`).
+
+4. **Compile the Sketch**:
+   Navigate to the directory containing your `.ino` file (e.g., `Amiga500-USB-Keyboard-Leonardo.ino`) and run:
+   ```bash
+   arduino-cli compile --fqbn arduino:avr:leonardo Amiga500-USB-Keyboard-Leonardo.ino
+   ```
+
+5. **Upload the Sketch**:
+   ```bash
+   arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:avr:leonardo Amiga500-USB-Keyboard-Leonardo.ino
+   ```
+   - Replace `/dev/ttyACM0` with your actual port if different.
+
+6. **Test the Uploaded Sketch**:
+   - Connect your Amiga 500 keyboard and verify functionality in a text editor.
+
+---
+
+## Option 2: Arduino IDE (Beginner-Friendly)
+
+The **Arduino IDE** provides a graphical interface for writing, compiling, and uploading Arduino sketches.
+
+### Steps
+
+1. **Install the Arduino IDE**:
+   - Download from [Arduino Software](https://www.arduino.cc/en/software).
+  
+2. **Install the Keyboard Library**:
+   - In the Arduino IDE, go to Tools > Manage Libraries....
+   - In the Library Manager, search for "Keyboard" and install the Keyboard library.
+
+3. **Open Your Sketch**:
+   - Launch the Arduino IDE.
+   - Go to `File` > `New`, paste your code, and save it as `Amiga500-USB-Keyboard-Leonardo.ino`.
+
+4. **Select Board and Port**:
+   - Go to `Tools` > `Board` > **Arduino Leonardo**.
+   - Go to `Tools` > `Port` and select the port for your Arduino Leonardo.
+
+5. **Compile and Upload**:
+   - Click **Verify** (checkmark icon) to compile.
+   - Click **Upload** (arrow icon) to upload the sketch to the board.
+
+6. **Test the Keyboard**:
+   - Connect your Amiga 500 keyboard to the Arduino Leonardo.
+   - Open a text editor and verify functionality.
+
+---
+
+### Additional Notes
+
+- **Linux Permissions**: If you encounter permission issues on Linux, add your user to the `dialout` group:
+  ```bash
+  sudo usermod -a -G dialout $USER
+  ```
+  Log out and back in for changes to take effect.
+
+- **Troubleshooting**:
+  - Ensure correct board and port selection.
+  - Double-check wiring connections.
+
 ## TODO
 
 - [ ] Implement 4 slots for macro recording and replay
