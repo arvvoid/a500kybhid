@@ -13,15 +13,28 @@
 #include <Keyboard.h>
 #include <HID.h>
 
-// Define bit masks for keyboard and joystick inputs
-#define BITMASK_A500CLK 0b00010000 // IO 8
-#define BITMASK_A500SP 0b00100000  // IO 9
-#define BITMASK_A500RES 0b01000000 // IO 10
+// Preprocessor flag to enable or disable debug mode
+// Debug mode provides verbose console output at every step.
+#define DEBUG_MODE 0
 
 // Preprocessor flag to enable or disable joystick support
 // Joystick support is only required if you are going to attach DB9 connectors and use legacy Amiga joysticks with the controller.
 #define ENABLE_JOYSTICKS 0
 
+#define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
+#define MACRO_SLOTS 5
+#define MACRO_DELAY 10 //ms
+#define PERSISTENT_MACRO 1 // Save macros to EEPROM
+
+#if PERSISTENT_MACRO
+  #include <EEPROM.h>
+  #define EEPROM_START_ADDRESS 0
+#endif
+
+// Define bit masks for keyboard and joystick inputs
+#define BITMASK_A500CLK 0b00010000 // IO 8
+#define BITMASK_A500SP 0b00100000  // IO 9
+#define BITMASK_A500RES 0b01000000 // IO 10
 #if ENABLE_JOYSTICKS
   #define BITMASK_JOY1 0b10011111    // IO 0..4,6
   #define BITMASK_JOY2 0b11110011    // IO A0..A5
@@ -38,9 +51,23 @@ enum KeyboardState
   WAIT_RES
 };
 
+// Macro structure
+struct Macro
+{
+  KeyReport keyReports[MAX_MACRO_LENGTH];
+  uint8_t length;
+};
+
 // Global variables
 KeyReport keyReport;
 uint32_t handshakeTimer = 0;
+Macro macros[MACRO_SLOTS]; // 5 macro slots
+bool recording = false;
+bool recordingSlot = false;
+bool playing = false;
+uint8_t currentMacroSlot = 0;
+uint8_t macroIndex = 0;
+uint32_t lastKeyPressTime = 0;
 
 #if ENABLE_JOYSTICKS
   // Joystick states
@@ -79,17 +106,110 @@ const uint8_t keyTable[0x68] = {
     // Modifiers: Shift left, Shift right, '-', Ctrl left, Alt left, Alt right, Win (Amiga) left, Ctrl (Amiga) right
     0x02, 0x20, 0x00, 0x01, 0x04, 0x40, 0x08, 0x10};
 
+#if PERSISTENT_MACRO
+    // Function to calculate macros checksum
+    uint8_t calculateChecksum(Macro* macros, int length)
+    {
+      uint8_t checksum = 0;
+      uint8_t* data = (uint8_t*)macros;
+      for (int i = 0; i < length; i++)
+      {
+        checksum ^= data[i];
+      }
+      return checksum;
+    }
+
+    // Function to save macros to EEPROM
+    void saveMacrosToEEPROM()
+    {
+      #if DEBUG_MODE
+        Serial.println("Saving macros to EEPROM");
+      #endif
+      int address = EEPROM_START_ADDRESS;
+      for (int i = 0; i < MACRO_SLOTS; i++)
+      {
+        for (int j = 0; j < MAX_MACRO_LENGTH; j++)
+        {
+          EEPROM.put(address, macros[i].keyReports[j]);
+          address += sizeof(KeyReport);
+        }
+        EEPROM.put(address, macros[i].length);
+        address += sizeof(macros[i].length);
+      }
+      // Calculate and save checksum
+      uint8_t checksum = calculateChecksum(macros, sizeof(macros));
+      EEPROM.put(address, checksum);
+      #if DEBUG_MODE
+        Serial.println("Saving macros to EEPROM Done!");
+      #endif
+    }
+
+    // Function to load macros from EEPROM
+    bool loadMacrosFromEEPROM()
+    {
+      #if DEBUG_MODE
+        Serial.println("Loading macros from EEPROM");
+      #endif
+      int address = EEPROM_START_ADDRESS;
+      for (int i = 0; i < MACRO_SLOTS; i++)
+      {
+        for (int j = 0; j < MAX_MACRO_LENGTH; j++)
+        {
+          EEPROM.get(address, macros[i].keyReports[j]);
+          address += sizeof(KeyReport);
+        }
+        EEPROM.get(address, macros[i].length);
+        address += sizeof(macros[i].length);
+      }
+      uint8_t storedChecksum;
+      EEPROM.get(address, storedChecksum);
+      uint8_t calculatedChecksum = calculateChecksum(macros, sizeof(macros));
+      // if checksum bad make sure to blank the memory of the macros array to not have garbage there
+      if (storedChecksum != calculatedChecksum)
+      {
+        #if DEBUG_MODE
+          Serial.println("Checksum mismatch, clearing macros");
+        #endif
+        cleanMacros();
+        return false;
+      }
+      #if DEBUG_MODE
+        Serial.println("Loading macros from EEPROM Done!");
+      #endif
+      return true;
+    }
+#else
+    void saveMacrosToEEPROM()
+    {
+      // Do nothing
+    }
+    bool loadMacrosFromEEPROM()
+    {
+      cleanMacros();
+      return true;
+    }
+#endif
+
 void setup()
 {
-  #if ENABLE_JOYSTICKS
-    // Initialize Joystick 1 (Port D)
-    DDRD = (uint8_t)(~BITMASK_JOY1); // Set pins as INPUT
-    PORTD = BITMASK_JOY1;            // Enable internal PULL-UP resistors
-
-    // Initialize Joystick 2 (Port F)
-    DDRF = (uint8_t)(~BITMASK_JOY2); // Set pins as INPUT
-    PORTF = BITMASK_JOY2;            // Enable internal PULL-UP resistors
+  #if DEBUG_MODE
+    Serial.begin(9600);
+    while (!Serial) { ; } // Wait for Serial to be ready
+    Serial.println("Debug mode enabled");
   #endif
+  noInterrupts(); // Disable interrupts to enter critical section
+  loadMacrosFromEEPROM();
+  interrupts(); // Enable interrupts to exit critical section
+
+#if ENABLE_JOYSTICKS
+  // Initialize Joystick 1 (Port D)
+  DDRD = (uint8_t)(~BITMASK_JOY1); // Set pins as INPUT
+  PORTD = BITMASK_JOY1;            // Enable internal PULL-UP resistors
+
+  // Initialize Joystick 2 (Port F)
+  DDRF = (uint8_t)(~BITMASK_JOY2); // Set pins as INPUT
+  PORTF = BITMASK_JOY2;            // Enable internal PULL-UP resistors
+#endif
 
   // Initialize Keyboard (Port B)
   DDRB &= ~(BITMASK_A500CLK | BITMASK_A500SP | BITMASK_A500RES); // Set pins as INPUT
@@ -97,33 +217,37 @@ void setup()
 
 void loop()
 {
-  #if ENABLE_JOYSTICKS
-    handleJoystick1();
-    handleJoystick2();
-  #endif
+#if ENABLE_JOYSTICKS
+  handleJoystick1();
+  handleJoystick2();
+#endif
   handleKeyboard();
+  if (playing)
+  {
+    playMacro();
+  }
 }
 
 #if ENABLE_JOYSTICKS
-  void handleJoystick1()
+void handleJoystick1()
+{
+  uint8_t currentJoyState = ~PIND & BITMASK_JOY1;
+  if (currentJoyState != previousJoy1State)
   {
-    uint8_t currentJoyState = ~PIND & BITMASK_JOY1;
-    if (currentJoyState != previousJoy1State)
-    {
-      HID().SendReport(3, &currentJoyState, 1);
-      previousJoy1State = currentJoyState;
-    }
+    HID().SendReport(3, &currentJoyState, 1);
+    previousJoy1State = currentJoyState;
   }
+}
 
-  void handleJoystick2()
+void handleJoystick2()
+{
+  uint8_t currentJoyState = ~PINF & BITMASK_JOY2;
+  if (currentJoyState != previousJoy2State)
   {
-    uint8_t currentJoyState = ~PINF & BITMASK_JOY2;
-    if (currentJoyState != previousJoy2State)
-    {
-      HID().SendReport(4, &currentJoyState, 1);
-      previousJoy2State = currentJoyState;
-    }
+    HID().SendReport(4, &currentJoyState, 1);
+    previousJoy2State = currentJoyState;
   }
+}
 #endif
 
 void handleKeyboard()
@@ -213,6 +337,10 @@ void handleKeyboard()
 
 void processKeyCode()
 {
+#if DEBUG_MODE
+  Serial.print("Processing key code: ");
+  Serial.println(currentKeyCode, HEX);
+#endif
   if (currentKeyCode == 0x5F)
   {
     // 'Help' key toggles function mode
@@ -222,6 +350,7 @@ void processKeyCode()
   {
     // CapsLock key
     keystroke(0x39, 0x00);
+    return;
   }
   else
   {
@@ -232,16 +361,35 @@ void processKeyCode()
       {
         // Special function with 'Help' key
         handleFunctionModeKey();
+        return;
       }
       else
       {
+
+        if(recording && !recordingSlot){
+          if(currentKeyCode >= 0x55 && currentKeyCode <= 0x59){
+            noInterrupts(); // Disable interrupts to enter critical section
+            currentMacroSlot = macroSlotFromKeyCode(currentKeyCode);
+            memset(macros[currentMacroSlot].keyReports, 0, sizeof(macros[currentMacroSlot].keyReports)); // Clear macro slot
+            macros[currentMacroSlot].length = 0;
+            macroIndex = 0;
+            recordingSlot = true;
+            interrupts(); // Enable interrupts to exit critical section
+            #if DEBUG_MODE
+              Serial.print("Recording slot selected: ");
+              Serial.println(currentMacroSlot, HEX);
+            #endif
+            return;
+          }
+        }
+
         if (currentKeyCode == 0x5A)
         {
-          keystroke(0x26, 0x20); // '('
+          keystroke(0x53, 0); // NumLock
         }
         else if (currentKeyCode == 0x5B)
         {
-          keystroke(0x27, 0x20); // ')'
+          keystroke(0x47, 0); // ScrollLock
         }
         else if (currentKeyCode < 0x68)
         {
@@ -262,6 +410,10 @@ void processKeyCode()
 
 void handleFunctionModeKey()
 {
+#if DEBUG_MODE
+  Serial.print("Handling function mode key: ");
+  Serial.println(currentKeyCode, HEX);
+#endif
   switch (currentKeyCode)
   {
   case 0x50:
@@ -270,57 +422,25 @@ void handleFunctionModeKey()
   case 0x51:
     keystroke(0x45, 0);
     break; // F12
-  case 0x5A:
-    keystroke(0x53, 0);
-    break; // NumLock
-  case 0x5B:
-    keystroke(0x47, 0);
-    break; // ScrollLock
   case 0x5D:
     keystroke(0x46, 0);
     break; // PrtSc
-  case 0x0F:
-    keystroke(0x49, 0);
-    break; // Insert
-  case 0x3C:
-    keystroke(0x4C, 0);
-    break; // Delete
-  case 0x1F:
-    keystroke(0x4E, 0);
-    break; // Page Down
-  case 0x3F:
-    keystroke(0x4B, 0);
-    break; // Page Up
-  case 0x3D:
-    keystroke(0x4A, 0);
-    break; // Home
-  case 0x1D:
-    keystroke(0x4D, 0);
-    break; // End
   case 0x52:
-    keystroke(0x7F, 0);
-    break; // Mute
+    startRecording();
+    break; // Help + F3: Start recording
   case 0x53:
-    keystroke(0x81, 0);
-    break; // Volume Down
+    stopRecording();
+    break; // Help + F4: Stop recording and save
   case 0x54:
-    keystroke(0x80, 0);
-    break; // Volume Up
+    cleanMacros();
+    break; // Help + F5: Stop any playing macro and reset all key presses
   case 0x55:
-    keystroke(0x82, 0);
-    break; // Play/Pause
   case 0x56:
-    keystroke(0x85, 0);
-    break; // Stop
   case 0x57:
-    keystroke(0x86, 0);
-    break; // Previous Track
   case 0x58:
-    keystroke(0x87, 0);
-    break; // Next Track
   case 0x59:
-    keystroke(0x65, 0);
-    break; // Application/Special Key
+    playMacroSlot(macroSlotFromKeyCode(currentKeyCode));
+    break; // Help + F6 to F10: Play macro in corresponding slot
   default:
     break;
   }
@@ -328,6 +448,10 @@ void handleFunctionModeKey()
 
 void keyPress(uint8_t keyCode)
 {
+#if DEBUG_MODE
+  Serial.print("Key press: ");
+  Serial.println(keyCode, HEX);
+#endif
   uint8_t hidCode = keyTable[keyCode];
   if (keyCode > 0x5F)
   {
@@ -345,10 +469,18 @@ void keyPress(uint8_t keyCode)
     }
   }
   HID().SendReport(2, &keyReport, sizeof(keyReport));
+  #if DEBUG_MODE
+    printKeyReport();
+  #endif
+  record_last_report();
 }
 
 void keyRelease(uint8_t keyCode)
 {
+#if DEBUG_MODE
+  Serial.print("Key release: ");
+  Serial.println(keyCode, HEX);
+#endif
   uint8_t hidCode = keyTable[keyCode];
   if (keyCode > 0x5F)
   {
@@ -365,10 +497,20 @@ void keyRelease(uint8_t keyCode)
     }
   }
   HID().SendReport(2, &keyReport, sizeof(keyReport));
+  #if DEBUG_MODE
+    printKeyReport();
+  #endif
+  record_last_report();
 }
 
 void keystroke(uint8_t keyCode, uint8_t modifiers)
 {
+#if DEBUG_MODE
+  Serial.print("Keystroke: ");
+  Serial.print(keyCode, HEX);
+  Serial.print(" with modifiers: ");
+  Serial.println(modifiers, HEX);
+#endif
   uint8_t originalModifiers = keyReport.modifiers;
   for (uint8_t i = 0; i < 6; i++)
   {
@@ -383,4 +525,148 @@ void keystroke(uint8_t keyCode, uint8_t modifiers)
       break;
     }
   }
+#if DEBUG_MODE
+  printKeyReport();
+#endif
 }
+
+void startRecording()
+{
+  if(!recording){
+      #if DEBUG_MODE
+        Serial.println("Start recording macro");
+      #endif
+      noInterrupts(); // Disable interrupts to enter critical section
+      playing = false;
+      macroIndex = 0;
+      currentMacroSlot = 0;
+      recordingSlot = false;
+      recording = true;
+      interrupts(); // Enable interrupts to exit critical section
+  }
+}
+
+void stopRecording()
+{
+  if(recording){
+    #if DEBUG_MODE
+      Serial.println("Stop recording macro");
+    #endif
+      noInterrupts(); // Disable interrupts to enter critical section
+      macros[currentMacroSlot].length = macroIndex;
+      recording = false;
+      recordingSlot = false;
+      // Save macros to EEPROM
+      saveMacrosToEEPROM();
+      interrupts(); // Enable interrupts to exit critical section
+  }
+}
+
+void cleanMacros()
+{
+    for (int i = 0; i < MACRO_SLOTS; i++)
+    {
+      memset(macros[i].keyReports, 0, sizeof(macros[i].keyReports));
+      macros[i].length = 0;
+    }
+}
+
+void resetMacros()
+{
+#if DEBUG_MODE
+  Serial.println("Reset macros");
+#endif
+  noInterrupts(); // Disable interrupts to enter critical section
+  playing = false;
+  Keyboard.releaseAll();
+  cleanMacros();
+  saveMacrosToEEPROM();
+  interrupts(); // Enable interrupts to exit critical section
+}
+
+void playMacroSlot(uint8_t slot)
+{
+#if DEBUG_MODE
+  Serial.print("Play macro slot: ");
+  Serial.println(slot);
+#endif
+  noInterrupts(); // Disable interrupts to enter critical section
+  if(!playing){
+    currentMacroSlot = slot;
+    macroIndex = 0;
+    playing = true;
+  }
+  interrupts(); // Enable interrupts to exit critical section
+}
+
+void playMacro()
+{
+
+  if(!playing){
+    return;
+  }
+  if (macroIndex < macros[currentMacroSlot].length)
+  {
+    if (millis() - lastKeyPressTime >= MACRO_DELAY)
+    {
+      noInterrupts(); // Disable interrupts to enter critical section
+      HID().SendReport(2, &macros[currentMacroSlot].keyReports[macroIndex], sizeof(KeyReport));
+      macroIndex++;
+      lastKeyPressTime = millis();
+      interrupts(); // Enable interrupts to exit critical section
+    }
+  }
+  else
+  {
+   noInterrupts(); // Disable interrupts to enter critical section
+   playing = false;
+   interrupts(); // Enable interrupts to exit critical section
+  }
+}
+
+void record_last_report(){
+  if (recording && recordingSlot && macroIndex < MAX_MACRO_LENGTH)
+  {
+    noInterrupts(); // Disable interrupts to enter critical section
+    #if DEBUG_MODE
+      Serial.print("Recording key report at index: ");
+      Serial.println(macroIndex);
+    #endif
+    memcpy(&macros[currentMacroSlot].keyReports[macroIndex], &keyReport, sizeof(KeyReport));
+    macroIndex++;
+    macros[currentMacroSlot].length = macroIndex;
+    // Check if the last index was recorded
+    if (macroIndex >= MAX_MACRO_LENGTH)
+    {
+      stopRecording();
+    }
+    else{
+      interrupts(); // Enable interrupts to exit critical section
+    }
+  }
+}
+
+uint8_t macroSlotFromKeyCode(uint8_t keyCode)
+{
+  uint8_t slot = keyCode - 0x55;
+  if (slot >= MACRO_SLOTS)
+  {
+    slot = MACRO_SLOTS - 1; // Ensure it does not exceed the maximum slots
+  }
+  return slot;
+}
+
+#if DEBUG_MODE
+void printKeyReport()
+{
+  Serial.print("Modifiers: ");
+  Serial.println(keyReport.modifiers, BIN);
+  Serial.print("Keys: ");
+  for (uint8_t i = 0; i < 6; i++)
+  {
+    Serial.print(keyReport.keys[i], HEX);
+    Serial.print(" ");
+  }
+  Serial.println();
+}
+#endif

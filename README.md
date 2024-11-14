@@ -48,54 +48,72 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 |-------------------------------|-------------------------|
 | **Help + F1**                 | F11                    |
 | **Help + F2**                 | F12                    |
-| **Help + NumL** (on numpad)   | Toggle NumLock         |
-| **Help + Scr L** (on numpad)  | Toggle ScrollLock      |
 | **Help + Ptr Sc** (on numpad) | Print Screen           |
-| **Help + Ins** (on numpad)    | Insert                 |
-| **Help + Del** (on numpad)    | Delete                 |
-| **Help + Pg Dn** (on numpad)  | Page Down              |
-| **Help + Pg Up** (on numpad)  | Page Up                |
-| **Help + Home** (on numpad)   | Home                   |
-| **Help + End** (on numpad)    | End                    |
-| **Help + F3**                 | Mute                   |
-| **Help + F4**                 | Volume Down            |
-| **Help + F5**                 | Volume Up              |
-| **Help + F6**                 | Play/Pause             |
-| **Help + F7**                 | Stop                   |
-| **Help + F8**                 | Previous Track         |
-| **Help + F9**                 | Next Track             |
-| **Help + F10**                | Application/Special Key|
+| **Help + F3**                 | Record macro           |
+| **Help + F4**                 | Save macro             |
+| **Help + F5**                 | Reset all macros       |
+| **Help + F6**                 | Play macro slot 1      |
+| **Help + F7**                 | Play macro slot 2      |
+| **Help + F8**                 | Play macro slot 3      |
+| **Help + F9**                 | Play macro slot 4      |
+| **Help + F10**                | Play macro slot 5      |
 
-### Important Note about NumLock
+### NumLock
 
 When **NumLock** is turned **off**, the following keys on the numeric keypad function as navigation keys by default:
 - **Insert**, **Delete**, **Home**, **End**, **Page Up**, and **Page Down**.
 - The **arrow keys** on the numeric keypad (2, 4, 6, and 8) also function as cursor movement keys.
 
-With **NumLock** turned **on**, these keys will function as standard numeric keys instead. Con be conbined with Help key for alternative function.
+With **NumLock** turned **on**, these keys will function as standard numeric keys instead.
 
-### Key Function Descriptions
+## Macro Recording and Playback Guide
 
-- **Help**: Activates specific special functions or multimedia controls when used in combination with other keys.
-- **Help + Navigation Keys**:
-  - **Help + Ins**: Insert.
-  - **Help + Del**: Delete.
-  - **Help + Pg Dn**: Page Down.
-  - **Help + Pg Up**: Page Up.
-  - **Help + Home**: Home.
-  - **Help + End**: End.
-- **Help + F3 to F10**: Controls multimedia functions:
-  - **Help + F3**: Mute the system audio.
-  - **Help + F4**: Decrease the volume.
-  - **Help + F5**: Increase the volume.
-  - **Help + F6**: Toggle Play/Pause for media.
-  - **Help + F7**: Stop media playback.
-  - **Help + F8**: Go to the previous track.
-  - **Help + F9**: Go to the next track.
-  - **Help + F10**: Application or Special Key, can be used for opening context menus or other system functions.
-- **Help + F1 and F2**: Standard F11 and F12 functions.
+This section explains how to use the macro recording and playback functionality of the Amiga 500 Keyboard to USB HID Converter. Macros allow you to record a sequence of key presses and play them back with a single key combination.
 
-This wiring and mapping setup allows the Amiga 500 keyboard to interface with the Arduino Leonardo effectively, bringing additional functionality with the **Help** key for multimedia and navigation control. The setup is ideal for retrofitting the keyboard for modern applications while retaining its unique layout and feel.
+### Macro Slots
+
+There are 5 macro slots available, each capable of storing up to 24 key reports. The macros are stored in EEPROM, so they persist across power cycles.
+24 to keep withing the EEPROM 1kb size of the Leonardo. If you disable persistent macros flag you can go up to 45 per slot on the Leonardo but macros will not persist power cycles.
+
+### Recording a Macro
+
+1. **Start Recording**:
+   - Press **Help + F3** to start recording a macro.
+
+2. **Select Recording Slot**:
+   - Press one of the keys **F6** to **F10** to select the recording slot (1 to 5).
+   - The keyboard will work normally, but it will record every key press until the macro slot is full or you stop recording.
+
+3. **Stop Recording**:
+   - Press **Help + F4** to stop recording and save the macro to the selected slot.
+
+### Playing a Macro
+
+1. **Play Macro**:
+   - Press one of the keys **Help + F6** to **Help + F10** to play the macro stored in the corresponding slot (1 to 5).
+   - The macro will play back the recorded key presses at fixed intervals.
+
+### Resetting Macros
+
+1. **Reset Macros**:
+   - Press **Help + F5** to stop any playing macro and reset all macros. WARNING this cleans and reset the EEPROM.
+
+### Example Usage
+
+1. **Recording a Macro**:
+   - Press **Help + F3** to start recording.
+   - Press **F6** to select slot 1.
+   - Type the sequence of keys you want to record.
+   - Press **Help + F4** to stop recording and save the macro.
+
+2. **Playing a Macro**:
+   - Press **Help + F6** to play the macro stored in slot 1.
+
+### Notes
+
+- Macros are stored in EEPROM, so they will persist across power cycles.
+- Each macro slot can store up to 24 key reports.
+- The recording will stop automatically if the macro slot is full.
 
 # Build and Upload Guide
 
@@ -195,7 +213,4 @@ The **Arduino IDE** provides a graphical interface for writing, compiling, and u
 
 ## TODO
 
-- [ ] Implement 4 slots for macro recording and replay
-- [ ] Add auto-repeat keys function
-- [ ] Create some predefined useful macros
-
+- [ ] Add an optional Piezo Buzzer to the Leonardo to produce tones for better macro recording user feedback
