@@ -23,7 +23,8 @@
 
 #define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
 #define MACRO_SLOTS 5
-#define MACRO_DELAY 10 //ms
+#define MACRO_DELAY 30 //ms between reports in macro playback
+#define MACRO_DELAY_RELESE 10 //ms between key press and release in macro playback
 #define PERSISTENT_MACRO 1 // Save macros to EEPROM
 
 #if PERSISTENT_MACRO
@@ -500,7 +501,6 @@ void keyRelease(uint8_t keyCode)
   #if DEBUG_MODE
     printKeyReport();
   #endif
-  record_last_report();
 }
 
 void keystroke(uint8_t keyCode, uint8_t modifiers)
@@ -553,7 +553,6 @@ void stopRecording()
       Serial.println("Stop recording macro");
     #endif
       noInterrupts(); // Disable interrupts to enter critical section
-      macros[currentMacroSlot].length = macroIndex;
       recording = false;
       recordingSlot = false;
       // Save macros to EEPROM
@@ -611,6 +610,9 @@ void playMacro()
     {
       noInterrupts(); // Disable interrupts to enter critical section
       HID().SendReport(2, &macros[currentMacroSlot].keyReports[macroIndex], sizeof(KeyReport));
+      //wait 10 ms an release all keys
+      delay(MACRO_DELAY_RELESE);
+      Keyboard.releaseAll();
       macroIndex++;
       lastKeyPressTime = millis();
       interrupts(); // Enable interrupts to exit critical section
