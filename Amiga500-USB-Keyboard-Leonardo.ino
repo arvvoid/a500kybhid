@@ -17,8 +17,15 @@
 #define BITMASK_A500CLK 0b00010000 // IO 8
 #define BITMASK_A500SP 0b00100000  // IO 9
 #define BITMASK_A500RES 0b01000000 // IO 10
-#define BITMASK_JOY1 0b10011111    // IO 0..4,6
-#define BITMASK_JOY2 0b11110011    // IO A0..A5
+
+// Preprocessor flag to enable or disable joystick support
+// Joystick support is only required if you are going to attach DB9 connectors and use legacy Amiga joysticks with the controller.
+#define ENABLE_JOYSTICKS 0
+
+#if ENABLE_JOYSTICKS
+  #define BITMASK_JOY1 0b10011111    // IO 0..4,6
+  #define BITMASK_JOY2 0b11110011    // IO A0..A5
+#endif
 
 // Enumerate keyboard states
 enum KeyboardState
@@ -35,11 +42,13 @@ enum KeyboardState
 KeyReport keyReport;
 uint32_t handshakeTimer = 0;
 
-// Joystick states
-uint8_t currentJoy1State = 0;
-uint8_t currentJoy2State = 0;
-uint8_t previousJoy1State = 0xFF; // Initialize to 0xFF so that initial state triggers update
-uint8_t previousJoy2State = 0xFF;
+#if ENABLE_JOYSTICKS
+  // Joystick states
+  uint8_t currentJoy1State = 0;
+  uint8_t currentJoy2State = 0;
+  uint8_t previousJoy1State = 0xFF; // Initialize to 0xFF so that initial state triggers update
+  uint8_t previousJoy2State = 0xFF;
+#endif
 
 // Keyboard state machine variables
 KeyboardState keyboardState = SYNCH_HI;
@@ -72,13 +81,15 @@ const uint8_t keyTable[0x68] = {
 
 void setup()
 {
-  // Initialize Joystick 1 (Port D)
-  DDRD = (uint8_t)(~BITMASK_JOY1); // Set pins as INPUT
-  PORTD = BITMASK_JOY1;            // Enable internal PULL-UP resistors
+  #if ENABLE_JOYSTICKS
+    // Initialize Joystick 1 (Port D)
+    DDRD = (uint8_t)(~BITMASK_JOY1); // Set pins as INPUT
+    PORTD = BITMASK_JOY1;            // Enable internal PULL-UP resistors
 
-  // Initialize Joystick 2 (Port F)
-  DDRF = (uint8_t)(~BITMASK_JOY2); // Set pins as INPUT
-  PORTF = BITMASK_JOY2;            // Enable internal PULL-UP resistors
+    // Initialize Joystick 2 (Port F)
+    DDRF = (uint8_t)(~BITMASK_JOY2); // Set pins as INPUT
+    PORTF = BITMASK_JOY2;            // Enable internal PULL-UP resistors
+  #endif
 
   // Initialize Keyboard (Port B)
   DDRB &= ~(BITMASK_A500CLK | BITMASK_A500SP | BITMASK_A500RES); // Set pins as INPUT
@@ -86,30 +97,34 @@ void setup()
 
 void loop()
 {
-  handleJoystick1();
-  handleJoystick2();
+  #if ENABLE_JOYSTICKS
+    handleJoystick1();
+    handleJoystick2();
+  #endif
   handleKeyboard();
 }
 
-void handleJoystick1()
-{
-  uint8_t currentJoyState = ~PIND & BITMASK_JOY1;
-  if (currentJoyState != previousJoy1State)
+#if ENABLE_JOYSTICKS
+  void handleJoystick1()
   {
-    HID().SendReport(3, &currentJoyState, 1);
-    previousJoy1State = currentJoyState;
+    uint8_t currentJoyState = ~PIND & BITMASK_JOY1;
+    if (currentJoyState != previousJoy1State)
+    {
+      HID().SendReport(3, &currentJoyState, 1);
+      previousJoy1State = currentJoyState;
+    }
   }
-}
 
-void handleJoystick2()
-{
-  uint8_t currentJoyState = ~PINF & BITMASK_JOY2;
-  if (currentJoyState != previousJoy2State)
+  void handleJoystick2()
   {
-    HID().SendReport(4, &currentJoyState, 1);
-    previousJoy2State = currentJoyState;
+    uint8_t currentJoyState = ~PINF & BITMASK_JOY2;
+    if (currentJoyState != previousJoy2State)
+    {
+      HID().SendReport(4, &currentJoyState, 1);
+      previousJoy2State = currentJoyState;
+    }
   }
-}
+#endif
 
 void handleKeyboard()
 {
