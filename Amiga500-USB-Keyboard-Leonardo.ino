@@ -545,25 +545,25 @@ void handleFunctionModeKey()
     break; // Help + F6 to F10: Play macro in corresponding slot
 #if ENABLE_MULTIMEDIA_KEYS
   case 0x4C: // HELP + Arrow Up: Volume Up
-    sendMultimediaKey(0xE9);
+    sendMultimediaReport(0x20); // Bit 5: Volume Up
     break;
   case 0x4D: // HELP + Arrow Down: Volume Down
-    sendMultimediaKey(0xEA);
+    sendMultimediaReport(0x40); // Bit 6: Volume Down
     break;
   case 0x4E: // HELP + Arrow Right: Next Track
-    sendMultimediaKey(0xB5);
+    sendMultimediaReport(0x01); // Bit 0: Next Track
     break;
   case 0x4F: // HELP + Arrow Left: Previous Track
-    sendMultimediaKey(0xB6);
+    sendMultimediaReport(0x02); // Bit 1: Previous Track
     break;
   case 0x44: // HELP + Enter: Play/Pause
-    sendMultimediaKey(0xCD);
+    sendMultimediaReport(0x08); // Bit 3: Play/Pause
     break;
   case 0x40: // HELP + Space: Stop
-    sendMultimediaKey(0xB7);
+    sendMultimediaReport(0x04); // Bit 2: Stop
     break;
-  case 0x64: // HELP+RightALT: Mute
-    sendMultimediaKey(0xE2);
+  case 0x64: // HELP + Right ALT: Mute
+    sendMultimediaReport(0x10); // Bit 4: Mute
     break;
 #endif
   default:
