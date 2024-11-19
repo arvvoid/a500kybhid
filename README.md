@@ -50,9 +50,10 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 | **Help + F2**                 | F12                    |
 | **Help + Ptr Sc** (on numpad) | Print Screen           |
 | **Help + F3**                 | Record macro           |
-| **Help + F4**                 | Record looping macro   |
-| **Help + F5**                 | Save macro             |
-| **Help + Del**                | Reset macro             |
+| **Help + F4**                 | Save macro             |
+| **Help + F5**                 | Toggle looping macro   |
+| **Help + Backspace**          | Stop all playing macros       |
+| **Help + Del**                | Reset all macros (delete all) |
 | **Help + F6**                 | Play macro slot 1      |
 | **Help + F7**                 | Play macro slot 2      |
 | **Help + F8**                 | Play macro slot 3      |
