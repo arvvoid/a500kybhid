@@ -23,8 +23,7 @@
 
 #define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
 #define MACRO_SLOTS 5
-#define MACRO_DELAY 30 //ms between reports in macro playback
-#define MACRO_DELAY_RELESE 10 //ms between key press and release in macro playback
+#define MACRO_DELAY 20 //ms between reports in macro playback
 #define PERSISTENT_MACRO 1 // Save macros to EEPROM
 
 #if PERSISTENT_MACRO
@@ -59,16 +58,23 @@ struct Macro
   uint8_t length;
 };
 
+struct MacroPlayStatus
+{
+  bool playing;
+  bool loop;
+  uint8_t macroIndex;
+};
+
 // Global variables
 KeyReport keyReport;
 uint32_t handshakeTimer = 0;
 Macro macros[MACRO_SLOTS]; // 5 macro slots
+MacroPlayStatus macroPlayStatus[MACRO_SLOTS];
 bool recording = false;
 bool recordingSlot = false;
-bool playing = false;
-uint8_t currentMacroSlot = 0;
-uint8_t macroIndex = 0;
-uint32_t lastKeyPressTime = 0;
+bool macro_looping = false;
+uint8_t recordingMacroSlot = 0;
+uint8_t recordingMacroIndex = 0;
 
 #if ENABLE_JOYSTICKS
   // Joystick states
@@ -223,10 +229,7 @@ void loop()
   handleJoystick2();
 #endif
   handleKeyboard();
-  if (playing)
-  {
-    playMacro();
-  }
+  playMacro();
 }
 
 #if ENABLE_JOYSTICKS
@@ -370,18 +373,18 @@ void processKeyCode()
         if(recording && !recordingSlot){
           if(currentKeyCode >= 0x55 && currentKeyCode <= 0x59){
             noInterrupts(); // Disable interrupts to enter critical section
-            currentMacroSlot = macroSlotFromKeyCode(currentKeyCode);
-            memset(macros[currentMacroSlot].keyReports, 0, sizeof(macros[currentMacroSlot].keyReports)); // Clear macro slot
-            macros[currentMacroSlot].length = 0;
-            macroIndex = 0;
+            recordingMacroSlot = macroSlotFromKeyCode(currentKeyCode);
+            memset(macros[recordingMacroSlot].keyReports, 0, sizeof(macros[recordingMacroSlot].keyReports)); // Clear macro slot
+            macros[recordingMacroSlot].length = 0;
+            recordingMacroIndex = 0;
             recordingSlot = true;
             interrupts(); // Enable interrupts to exit critical section
             #if DEBUG_MODE
               Serial.print("Recording slot selected: ");
               Serial.println(currentMacroSlot, HEX);
             #endif
-            return;
           }
+          return;
         }
 
         if (currentKeyCode == 0x5A)
@@ -428,13 +431,19 @@ void handleFunctionModeKey()
     break; // PrtSc
   case 0x52:
     startRecording();
-    break; // Help + F3: Start recording
+    break; // Help + F3: Start recording macro
   case 0x53:
     stopRecording();
     break; // Help + F4: Stop recording and save
   case 0x54:
-    cleanMacros();
-    break; // Help + F5: Stop any playing macro and reset all key presses
+    macro_looping = !macro_looping;
+    break; // Help + F5: Togle loop play macro mode
+  case 0x41:
+    stopAllMacros();
+    break; // Help + Backspace: Stop any playing macro
+  case 0x46:
+    resetMacros();
+    break; // Help + Del: Stop any playing macro and reset all macros including eeprom
   case 0x55:
   case 0x56:
   case 0x57:
@@ -537,9 +546,9 @@ void startRecording()
         Serial.println("Start recording macro");
       #endif
       noInterrupts(); // Disable interrupts to enter critical section
-      playing = false;
-      macroIndex = 0;
-      currentMacroSlot = 0;
+      stopAllMacros();
+      recordingMacroIndex = 0;
+      recordingMacroSlot = 0;
       recordingSlot = false;
       recording = true;
       interrupts(); // Enable interrupts to exit critical section
@@ -576,7 +585,7 @@ void resetMacros()
   Serial.println("Reset macros");
 #endif
   noInterrupts(); // Disable interrupts to enter critical section
-  playing = false;
+  stopAllMacros();
   Keyboard.releaseAll();
   cleanMacros();
   saveMacrosToEEPROM();
@@ -585,60 +594,114 @@ void resetMacros()
 
 void playMacroSlot(uint8_t slot)
 {
-#if DEBUG_MODE
-  Serial.print("Play macro slot: ");
-  Serial.println(slot);
-#endif
   noInterrupts(); // Disable interrupts to enter critical section
-  if(!playing){
-    currentMacroSlot = slot;
-    macroIndex = 0;
-    playing = true;
+  if(!macroPlayStatus[slot].playing){
+    #if DEBUG_MODE
+     Serial.print("Play macro slot: ");
+     Serial.println(slot);
+    #endif
+    macroPlayStatus[slot].macroIndex = 0;
+    if(macro_looping){
+      macroPlayStatus[slot].loop = true;
+    }
+    else{
+      macroPlayStatus[slot].loop = false;
+    }
+    macroPlayStatus[slot].playing = true;
+  }
+  else{
+    //togle playing
+    #if DEBUG_MODE
+     Serial.print("Stop Play macro slot: ");
+     Serial.println(slot);
+    #endif
+    macroPlayStatus[slot].playing = false;
+     macroPlayStatus[slot].loop = false;
+    macroPlayStatus[slot].macroIndex = 0;
   }
   interrupts(); // Enable interrupts to exit critical section
 }
 
-void playMacro()
+// Check if any macro is playing
+bool isMacroPlaying()
 {
+   for(int i = 0; i < MACRO_SLOTS; i++){
+     if(macroPlayStatus[i].playing){
+       return true;
+     }
+   }
+}
 
-  if(!playing){
-    return;
-  }
-  if (macroIndex < macros[currentMacroSlot].length)
-  {
-    if (millis() - lastKeyPressTime >= MACRO_DELAY)
-    {
-      noInterrupts(); // Disable interrupts to enter critical section
-      HID().SendReport(2, &macros[currentMacroSlot].keyReports[macroIndex], sizeof(KeyReport));
-      //wait 10 ms an release all keys
-      delay(MACRO_DELAY_RELESE);
-      Keyboard.releaseAll();
-      macroIndex++;
-      lastKeyPressTime = millis();
-      interrupts(); // Enable interrupts to exit critical section
+// Stop all playing macros
+void stopAllMacros()
+{
+  for(int i = 0; i < MACRO_SLOTS; i++){
+    if(macroPlayStatus[i].playing){
+      macroPlayStatus[i].playing = false;
+      macroPlayStatus[i].loop = false;
+      macroPlayStatus[i].macroIndex = 0;
     }
-  }
-  else
-  {
-   noInterrupts(); // Disable interrupts to enter critical section
-   playing = false;
-   interrupts(); // Enable interrupts to exit critical section
   }
 }
 
+void playMacro()
+{
+    static uint32_t lastMacroTime = 0;
+
+    if (millis() - lastMacroTime >= MACRO_DELAY)
+    {
+        for (uint8_t macro_slot = 0; macro_slot < MACRO_SLOTS; macro_slot++)
+        {
+            // Check if the macro is currently playing
+            if (macroPlayStatus[macro_slot].playing)
+            {
+                if (macroPlayStatus[macro_slot].macroIndex < macros[macro_slot].length)
+                {
+                        // Send the key report
+                        HID().SendReport(2, &macros[macro_slot].keyReports[macroPlayStatus[macro_slot].macroIndex], sizeof(KeyReport));
+                        // Release all keys (non-blocking)
+                        Keyboard.releaseAll();
+                        // Move to the next key in the macro
+                        macroPlayStatus[macro_slot].macroIndex++;
+                }
+
+                // Check if the macro has completed
+                if (macroPlayStatus[macro_slot].macroIndex >= macros[macro_slot].length)
+                {
+                    if (macroPlayStatus[macro_slot].loop)
+                    {
+                        // Reset to the beginning of the macro if looping
+                        macroPlayStatus[macro_slot].macroIndex = 0;
+                    }
+                    else
+                    {
+                        // Stop playing if not looping
+                        macroPlayStatus[macro_slot].playing = false;
+                        macroPlayStatus[macro_slot].macroIndex = 0;
+                    }
+                }
+            }
+        }
+
+        // Update the last macro time for the next iteration
+        lastMacroTime = millis();
+    }
+}
+
+
 void record_last_report(){
-  if (recording && recordingSlot && macroIndex < MAX_MACRO_LENGTH)
+  if (recording && recordingSlot && recordingMacroIndex < MAX_MACRO_LENGTH)
   {
     noInterrupts(); // Disable interrupts to enter critical section
     #if DEBUG_MODE
       Serial.print("Recording key report at index: ");
       Serial.println(macroIndex);
     #endif
-    memcpy(&macros[currentMacroSlot].keyReports[macroIndex], &keyReport, sizeof(KeyReport));
-    macroIndex++;
-    macros[currentMacroSlot].length = macroIndex;
+    memcpy(&macros[recordingMacroSlot].keyReports[recordingMacroIndex], &keyReport, sizeof(KeyReport));
+    recordingMacroIndex++;
+    macros[recordingMacroSlot].length = recordingMacroIndex;
     // Check if the last index was recorded
-    if (macroIndex >= MAX_MACRO_LENGTH)
+    if (recordingMacroIndex >= MAX_MACRO_LENGTH)
     {
       stopRecording();
     }

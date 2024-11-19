@@ -50,8 +50,9 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 | **Help + F2**                 | F12                    |
 | **Help + Ptr Sc** (on numpad) | Print Screen           |
 | **Help + F3**                 | Record macro           |
-| **Help + F4**                 | Save macro             |
-| **Help + F5**                 | Reset all macros       |
+| **Help + F4**                 | Record looping macro   |
+| **Help + F5**                 | Save macro             |
+| **Help + Del**                | Reset macro             |
 | **Help + F6**                 | Play macro slot 1      |
 | **Help + F7**                 | Play macro slot 2      |
 | **Help + F8**                 | Play macro slot 3      |
@@ -75,23 +76,36 @@ This section explains how to use the macro recording and playback functionality 
 There are 5 macro slots available, each capable of storing up to 24 key reports. The macros are stored in EEPROM, so they persist across power cycles.
 24 to keep withing the EEPROM 1kb size of the Leonardo. If you disable persistent macros flag you can go up to 45 per slot on the Leonardo but macros will not persist power cycles.
 
-### Recording a Macro
+### **Recording a Macro**
 
 1. **Start Recording**:
-   - Press **Help + F3** to start recording a macro.
+   - Press **Help + F3** to begin recording a macro.
+   - Normal key presses will be temporarily blocked until you select a recording slot.
 
-2. **Select Recording Slot**:
-   - Press one of the keys **F6** to **F10** to select the recording slot (1 to 5).
-   - The keyboard will work normally, but it will record every key press until the macro slot is full or you stop recording.
+2. **Select a Recording Slot**:
+   - Press one of the keys **F6** to **F10** to choose a recording slot (slots 1 to 5).
+   - After selecting a slot, the keyboard will function normally, but every key press will be recorded until the slot is full or you stop recording.
 
 3. **Stop Recording**:
-   - Press **Help + F4** to stop recording and save the macro to the selected slot.
+   - Press **Help + F4** to stop recording and save the macro in the selected slot.
 
-### Playing a Macro
+### **Playing a Macro**
 
-1. **Play Macro**:
-   - Press one of the keys **Help + F6** to **Help + F10** to play the macro stored in the corresponding slot (1 to 5).
-   - The macro will play back the recorded key presses at fixed intervals.
+1. **Play a Macro**:
+   - Press **Help + F6** to **Help + F10** to play the macro stored in the corresponding slot (slots 1 to 5).
+   - The macro will replay the recorded key presses at fixed intervals.
+
+2. **Activate Looping** (BETA):
+   - Press **Help + F5** to toggle looping mode for macros.
+   - When looping is active:
+     - A macro will repeat continuously once started.
+     - You can deactivate looping mode to allow other macros to play just once.
+   - To stop a looping macro, press the corresponding slot key again (e.g., **Help + F6**) while the macro is playing.
+   - **Note:** Running too many loops with many key presses may interfere with normal keyboard functionality and introduce delays to standard key presses. Use with caution.
+   - **Note:** This feature is work in progress
+
+3. **Stop All Macros**:
+   - Press **Help + Backspace** to stop all currently playing macros.
 
 ### Resetting Macros
 
