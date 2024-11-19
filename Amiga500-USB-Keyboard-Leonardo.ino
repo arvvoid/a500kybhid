@@ -545,25 +545,25 @@ void handleFunctionModeKey()
     break; // Help + F6 to F10: Play macro in corresponding slot
 #if ENABLE_MULTIMEDIA_KEYS
   case 0x4C: // HELP + Arrow Up: Volume Up
-    sendMultimediaReport(0x20); // Bit 5: Volume Up
+   sendMultimediaKey(0x20); // Bit 5: Volume Up
     break;
   case 0x4D: // HELP + Arrow Down: Volume Down
-    sendMultimediaReport(0x40); // Bit 6: Volume Down
+    sendMultimediaKey(0x40); // Bit 6: Volume Down
     break;
   case 0x4E: // HELP + Arrow Right: Next Track
-    sendMultimediaReport(0x01); // Bit 0: Next Track
+    sendMultimediaKey(0x01); // Bit 0: Next Track
     break;
   case 0x4F: // HELP + Arrow Left: Previous Track
-    sendMultimediaReport(0x02); // Bit 1: Previous Track
+    sendMultimediaKey(0x02); // Bit 1: Previous Track
     break;
   case 0x44: // HELP + Enter: Play/Pause
-    sendMultimediaReport(0x08); // Bit 3: Play/Pause
+    sendMultimediaKey(0x08); // Bit 3: Play/Pause
     break;
   case 0x40: // HELP + Space: Stop
-    sendMultimediaReport(0x04); // Bit 2: Stop
+    sendMultimediaKey(0x04); // Bit 2: Stop
     break;
   case 0x64: // HELP + Right ALT: Mute
-    sendMultimediaReport(0x10); // Bit 4: Mute
+    sendMultimediaKey(0x10); // Bit 4: Mute
     break;
 #endif
   default:
@@ -656,13 +656,11 @@ void keystroke(uint8_t keyCode, uint8_t modifiers)
 }
 
 #if ENABLE_MULTIMEDIA_KEYS
-void sendMultimediaKey(uint8_t keyCode)
+void sendMultimediaKey(uint8_t report)
 {
-  uint8_t report[1] = {keyCode};  // Key press report
-  HID().SendReport(5, report, sizeof(report));  // Send key press
+  HID().SendReport(5, report, 1);  // Send key press
   delay(KEY_RELEASE_DELAY);  // Small delay to ensure the key press is registered
-  report[0] = 0;  // Release all keys
-  HID().SendReport(5, report, sizeof(report));  // Send release
+  HID().SendReport(5, 0x00, 1);  // Send release
 }
 #endif
 
