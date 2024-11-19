@@ -10,7 +10,6 @@
  * and special function keys.
  */
 
-#include <Keyboard.h>
 #include <HID.h>
 
 // Preprocessor flag to enable or disable debug mode
@@ -20,6 +19,8 @@
 // Preprocessor flag to enable or disable joystick support
 // Joystick support is only required if you are going to attach DB9 connectors and use legacy Amiga joysticks with the controller.
 #define ENABLE_JOYSTICKS 0
+
+#define ENABLE_MULTIMEDIA_KEYS 1 // Enable multimedia keys (volume, play/pause, etc.)
 
 #define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
 #define MACRO_SLOTS 5
@@ -40,6 +41,8 @@
   #define BITMASK_JOY2 0b11110011    // IO A0..A5
 #endif
 
+#define KEY_RELEASE_DELAY 2 //ms delay between key press and release
+
 // Enumerate keyboard states
 enum KeyboardState
 {
@@ -50,6 +53,14 @@ enum KeyboardState
   WAIT_LO,
   WAIT_RES
 };
+
+// Low level key report: up to 6 keys and shift, ctrl etc at once
+typedef struct
+{
+  uint8_t modifiers;
+  uint8_t reserved;
+  uint8_t keys[6];
+} KeyReport;
 
 // Macro structure
 struct Macro
@@ -82,6 +93,89 @@ uint8_t recordingMacroIndex = 0;
   uint8_t currentJoy2State = 0;
   uint8_t previousJoy1State = 0xFF; // Initialize to 0xFF so that initial state triggers update
   uint8_t previousJoy2State = 0xFF;
+
+  const uint8_t joystick1Descriptor[] PROGMEM = {
+    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+    0x09, 0x05,                    // USAGE (Game Pad)
+    0xA1, 0x01,                    // COLLECTION (Application)
+    0x85, 0x03,                    // REPORT_ID (3)
+    0x09, 0x01,                    // USAGE (Pointer)
+    0xA1, 0x00,                    // COLLECTION (Physical)
+    0x09, 0x30,                    // USAGE (X)
+    0x09, 0x31,                    // USAGE (Y)
+    0x15, 0xFF,                    // LOGICAL_MINIMUM (-1)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,                    // REPORT_COUNT (2)
+    0x75, 0x02,                    // REPORT_SIZE (2)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0xC0,                          // END_COLLECTION
+    0x05, 0x09,                    // USAGE_PAGE (Button)
+    0x19, 0x01,                    // USAGE_MINIMUM (Button 1)
+    0x29, 0x02,                    // USAGE_MAXIMUM (Button 2)
+    0x15, 0x00,                    // LOGICAL_MINIMUM (0)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,                    // REPORT_COUNT (2)
+    0x75, 0x01,                    // REPORT_SIZE (1)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0xC0                           // END_COLLECTION
+  };
+
+  const uint8_t joystick2Descriptor[] PROGMEM = {
+    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+    0x09, 0x05,                    // USAGE (Game Pad)
+    0xA1, 0x01,                    // COLLECTION (Application)
+    0x85, 0x04,                    // REPORT_ID (4)
+    0x09, 0x01,                    // USAGE (Pointer)
+    0xA1, 0x00,                    // COLLECTION (Physical)
+    0x09, 0x30,                    // USAGE (X)
+    0x09, 0x31,                    // USAGE (Y)
+    0x15, 0xFF,                    // LOGICAL_MINIMUM (-1)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,                    // REPORT_COUNT (2)
+    0x75, 0x02,                    // REPORT_SIZE (2)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0xC0,                          // END_COLLECTION
+    0x05, 0x09,                    // USAGE_PAGE (Button)
+    0x19, 0x01,                    // USAGE_MINIMUM (Button 1)
+    0x29, 0x02,                    // USAGE_MAXIMUM (Button 2)
+    0x15, 0x00,                    // LOGICAL_MINIMUM (0)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,                    // REPORT_COUNT (2)
+    0x75, 0x01,                    // REPORT_SIZE (1)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0xC0                           // END_COLLECTION
+  };
+
+  // Wrap Descriptors in HIDSubDescriptor
+  HIDSubDescriptor joystick1HID(joystick1Descriptor, sizeof(joystick1Descriptor));
+  HIDSubDescriptor joystick2HID(joystick2Descriptor, sizeof(joystick2Descriptor));
+#endif
+
+#if ENABLE_MULTIMEDIA_KEYS
+  const uint8_t multimediaDescriptor[] PROGMEM = {
+    0x05, 0x0C,                    // USAGE_PAGE (Consumer Devices)
+    0x09, 0x01,                    // USAGE (Consumer Control)
+    0xA1, 0x01,                    // COLLECTION (Application)
+    0x85, 0x05,                    // REPORT_ID (5)
+    0x15, 0x00,                    // LOGICAL_MINIMUM (0)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x75, 0x01,                    // REPORT_SIZE (1)
+    0x95, 0x07,                    // REPORT_COUNT (7)
+    0x09, 0xB5,                    // USAGE (Next Track)
+    0x09, 0xB6,                    // USAGE (Previous Track)
+    0x09, 0xB7,                    // USAGE (Stop)
+    0x09, 0xCD,                    // USAGE (Play/Pause)
+    0x09, 0xE2,                    // USAGE (Mute)
+    0x09, 0xE9,                    // USAGE (Volume Up)
+    0x09, 0xEA,                    // USAGE (Volume Down)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0x95, 0x01,                    // REPORT_COUNT (1)
+    0x75, 0x01,                    // REPORT_SIZE (1)
+    0x81, 0x03,                    // INPUT (Const,Var,Abs) - Padding
+    0xC0                           // END_COLLECTION
+  };
+
+  HIDSubDescriptor multimediaHID(multimediaDescriptor, sizeof(multimediaDescriptor));
 #endif
 
 // Keyboard state machine variables
@@ -91,7 +185,7 @@ uint8_t currentKeyCode = 0;
 bool functionMode = false; // Indicates if 'Help' key is active
 bool isKeyDown = false;
 
-const uint8_t keyTable[0x68] = {
+const uint8_t keyTable[0x68] = { //US Keyboard Layout Amiga500 to HID
     // Tilde, 1-9, 0, sz, Accent, backslash, Num 0 (00 - 0F)
     0x35, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24,
     0x25, 0x26, 0x27, 0x2D, 0x2E, 0x31, 0, 0x62,
@@ -209,6 +303,8 @@ void setup()
   interrupts(); // Enable interrupts to exit critical section
 
 #if ENABLE_JOYSTICKS
+  HID().AppendDescriptor(&joystick1HID);
+  HID().AppendDescriptor(&joystick2HID);
   // Initialize Joystick 1 (Port D)
   DDRD = (uint8_t)(~BITMASK_JOY1); // Set pins as INPUT
   PORTD = BITMASK_JOY1;            // Enable internal PULL-UP resistors
@@ -216,6 +312,10 @@ void setup()
   // Initialize Joystick 2 (Port F)
   DDRF = (uint8_t)(~BITMASK_JOY2); // Set pins as INPUT
   PORTF = BITMASK_JOY2;            // Enable internal PULL-UP resistors
+#endif
+
+#if ENABLE_MULTIMEDIA_KEYS
+  HID().AppendDescriptor(&multimediaHID);
 #endif
 
   // Initialize Keyboard (Port B)
@@ -451,6 +551,29 @@ void handleFunctionModeKey()
   case 0x59:
     playMacroSlot(macroSlotFromKeyCode(currentKeyCode));
     break; // Help + F6 to F10: Play macro in corresponding slot
+#if ENABLE_MULTIMEDIA_KEYS
+  case 0x4C: // HELP + Arrow Up: Volume Up
+    sendMultimediaKey(0xE9);
+    break;
+  case 0x4D: // HELP + Arrow Down: Volume Down
+    sendMultimediaKey(0xEA);
+    break;
+  case 0x4E: // HELP + Arrow Right: Next Track
+    sendMultimediaKey(0xB5);
+    break;
+  case 0x4F: // HELP + Arrow Left: Previous Track
+    sendMultimediaKey(0xB6);
+    break;
+  case 0x44: // HELP + Enter: Play/Pause
+    sendMultimediaKey(0xCD);
+    break;
+  case 0x40: // HELP + Space: Stop
+    sendMultimediaKey(0xB7);
+    break;
+  case 0x64: // HELP+RightALT: Mute
+    sendMultimediaKey(0xE2);
+    break;
+#endif
   default:
     break;
   }
@@ -528,6 +651,7 @@ void keystroke(uint8_t keyCode, uint8_t modifiers)
       keyReport.keys[i] = keyCode;
       keyReport.modifiers = modifiers;
       HID().SendReport(2, &keyReport, sizeof(keyReport));
+      delay(KEY_RELEASE_DELAY);  // Small delay to ensure the key press is registered
       keyReport.keys[i] = 0;
       keyReport.modifiers = originalModifiers;
       HID().SendReport(2, &keyReport, sizeof(keyReport));
@@ -538,6 +662,17 @@ void keystroke(uint8_t keyCode, uint8_t modifiers)
   printKeyReport();
 #endif
 }
+
+#if ENABLE_MULTIMEDIA_KEYS
+void sendMultimediaKey(uint8_t keyCode)
+{
+  uint8_t report[1] = {keyCode};  // Key press report
+  HID().SendReport(5, report, sizeof(report));  // Send key press
+  delay(KEY_RELEASE_DELAY);  // Small delay to ensure the key press is registered
+  report[0] = 0;  // Release all keys
+  HID().SendReport(5, report, sizeof(report));  // Send release
+}
+#endif
 
 void startRecording()
 {
@@ -659,7 +794,7 @@ void playMacro()
                 {
                         // Send the key report
                         HID().SendReport(2, &macros[macro_slot].keyReports[macroPlayStatus[macro_slot].macroIndex], sizeof(KeyReport));
-                        // Release all keys (non-blocking)
+                        delay(KEY_RELEASE_DELAY);  // Small delay to ensure the key press is registered
                         Keyboard.releaseAll();
                         // Move to the next key in the macro
                         macroPlayStatus[macro_slot].macroIndex++;

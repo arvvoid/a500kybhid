@@ -32,6 +32,48 @@ To connect the Amiga 500 keyboard to the Arduino Leonardo, refer to the followin
 - **LED1 (Blue, Pin 7)**: Connects to **5V** for indicating power.
 - **LED2 (Purple, Pin 8)**: Not connected.
 
+Amiga keyboard specs: http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0173.html
+```
+The keyboard transmits 8-bit data words serially to the main unit. Before
+the transmission starts, both KCLK and KDAT are high.  The keyboard starts
+the transmission by putting out the first data bit (on KDAT), followed by
+a pulse on KCLK (low then high); then it puts out the second data bit and
+pulses KCLK until all eight data bits have been sent.  After the end of
+the last KCLK pulse, the keyboard pulls KDAT high again.
+
+When the computer has received the eighth bit, it must pulse KDAT low for
+at least 1 (one) microsecond, as a handshake signal to the keyboard.  The
+handshake detection on the keyboard end will typically use a hardware
+latch.  The keyboard must be able to detect pulses greater than or equal
+to 1 microsecond.  Software MUST pulse the line low for 85 microseconds to
+ensure compatibility with all keyboard models.
+
+All codes transmitted to the computer are rotated one bit before
+transmission.  The transmitted order is therefore 6-5-4-3-2-1-0-7. The
+reason for this is to transmit the  up/down flag  last, in order to cause
+a key-up code to be transmitted in case the keyboard is forced to restore
+ lost sync  (explained in more detail below).
+
+The KDAT line is active low; that is, a high level (+5V) is interpreted as
+0, and a low level (0V) is interpreted as 1.
+
+             _____   ___   ___   ___   ___   ___   ___   ___   _________
+        KCLK      \_/   \_/   \_/   \_/   \_/   \_/   \_/   \_/
+             ___________________________________________________________
+        KDAT    \_____X_____X_____X_____X_____X_____X_____X_____/
+                  (6)   (5)   (4)   (3)   (2)   (1)   (0)   (7)
+
+                 First                                     Last
+                 sent                                      sent
+
+The keyboard processor sets the KDAT line about 20 microseconds before it
+pulls KCLK low.  KCLK stays low for about 20 microseconds, then goes high
+again.  The processor waits another 20 microseconds before changing KDAT.
+
+Therefore, the bit rate during transmission is about 60 microseconds per
+bit, or 17 kbits/sec.
+```
+
 ---
 
 ## Amiga 500 Keyboard Layout
@@ -59,6 +101,16 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 | **Help + F8**                 | Play macro slot 3      |
 | **Help + F9**                 | Play macro slot 4      |
 | **Help + F10**                | Play macro slot 5      |
+|-------------------------------|-------------------------|
+| Key Combination (Multimedia)  | Function                |
+|-------------------------------|-------------------------|
+| **Help + Arrow Up**           | Volume Up               |
+| **Help + Arrow Down**         | Volume Down             |
+| **Help + Arrow Right**        | Next Track              |
+| **Help + Arrow Left**         | Previous Track          |
+| **Help + Enter**              | Play/Pause              |
+| **Help + Space**              | Stop                    |
+| **Help + Right ALT**          | Mute                    |
 
 ### NumLock
 
@@ -226,6 +278,40 @@ The **Arduino IDE** provides a graphical interface for writing, compiling, and u
   - Ensure correct board and port selection.
   - Double-check wiring connections.
 
+# Wiring Guide for Dual Joysticks
+
+## Joystick 1
+
+| DB9 Pin | Joystick Signal   | Arduino Pin |
+|---------|-------------------|-------------|
+| 1       | Up                | Pin 0       |
+| 2       | Down              | Pin 1       |
+| 3       | Left              | Pin 2       |
+| 4       | Right             | Pin 3       |
+| 5       | Button 1 (Fire)   | Pin 4       |
+| 6       | +5V (Optional)    | +5V         |
+| 7       | Ground            | GND         |
+| 8       | Button 2 (Optional)| Pin 6      |
+
+## Joystick 2
+
+| DB9 Pin | Joystick Signal   | Arduino Pin |
+|---------|-------------------|-------------|
+| 1       | Up                | Pin A0      |
+| 2       | Down              | Pin A1      |
+| 3       | Left              | Pin A2      |
+| 4       | Right             | Pin A3      |
+| 5       | Button 1 (Fire)   | Pin A4      |
+| 6       | +5V (Optional)    | +5V         |
+| 7       | Ground            | GND         |
+| 8       | Button 2 (Optional)| Pin A5      |
+
+## Notes
+- Set the `ENABLE_JOYSTICKS` flag to `1` in the code if you want to compile joystick support.
+- Joystick functionality is experimental and lightly tested.
+
 ## TODO
 
-- [ ] Add an optional Piezo Buzzer to the Leonardo to produce tones for better macro recording user feedback
+- [ ] Refactor keyboard and joystick input handling to be interrupt-driven and non-blocking. Implement a processing queue for managing keypresses efficiently.
+- [ ] Add an optional Piezo Buzzer to the Leonardo for audio feedback, providing better user experience during macro recording.
+- [ ] Multiple layouts.
