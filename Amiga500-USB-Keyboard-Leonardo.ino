@@ -9,7 +9,7 @@
  * keyboard using an Arduino Leonardo. It includes support for joystick inputs
  * and special function keys.
  */
-
+#include <Keyboard.h>
 #include <HID.h>
 
 // Preprocessor flag to enable or disable debug mode
@@ -53,14 +53,6 @@ enum KeyboardState
   WAIT_LO,
   WAIT_RES
 };
-
-// Low level key report: up to 6 keys and shift, ctrl etc at once
-typedef struct
-{
-  uint8_t modifiers;
-  uint8_t reserved;
-  uint8_t keys[6];
-} KeyReport;
 
 // Macro structure
 struct Macro
