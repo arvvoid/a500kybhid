@@ -188,7 +188,70 @@ This guide will help you compile and upload the Amiga 500 Keyboard converter cod
 
 ---
 
-## Option 1: Arduino CLI (Command Line)
+## Option 1: Provided makefile (Arduino CLI)
+
+This method uses a Makefile to automate the process of compiling and uploading the sketch. It also handles the installation of the Arduino CLI, required cores, and libraries.
+
+### Requirements
+
+- Make utility installed on your system
+
+### Steps
+
+1. **Install Arduino CLI**:
+   - If you don't have the Arduino CLI installed, you can install it using the provided Makefile:
+     ```sh
+     make install-arduino-cli
+     ```
+
+2. **Install Required Core**:
+   - Install the required core for the Arduino Leonardo:
+     ```sh
+     make install-core
+     ```
+
+3. **Install Required Libraries**:
+   - Install the required libraries:
+     ```sh
+     make install-libraries
+     ```
+
+4. **Update Cores and Libraries**:
+   - Ensure all cores and libraries are up to date:
+     ```sh
+     make update-cores-libraries
+     ```
+
+5. **Compile the Sketch**:
+   - Compile the sketch with warnings enabled:
+     ```sh
+     make verify
+     ```
+
+6. **Upload the Sketch**:
+   - Compile and upload the sketch to the Arduino Leonardo:
+     ```sh
+     make upload
+     ```
+
+7. **Clean Build Artifacts**:
+   - Remove build artifacts:
+     ```sh
+     make clean
+     ```
+
+### Makefile Targets
+
+- `make help`: Show help
+- `make verify`: Compile the sketch with warnings enabled.
+- `make upload`: Compile and upload the sketch to the Arduino Leonardo.
+- `make clean`: Remove build artifacts.
+- `make install-arduino-cli`: Install the Arduino CLI.
+- `make install-core`: Install the required core for the Arduino Leonardo.
+- `make install-libraries`: Install the required libraries.
+- `make update-cores-libraries`: Update all cores and libraries.
+
+## Option 2: Arduino CLI (Manual, Command Line)
 
 This method is ideal for users comfortable with the command line. **Arduino CLI** allows for efficient building and uploading.
 
@@ -236,7 +299,7 @@ This method is ideal for users comfortable with the command line. **Arduino CLI*
 
 ---
 
-## Option 2: Arduino IDE (Beginner-Friendly)
+## Option 3: Arduino IDE (Beginner-Friendly)
 
 The **Arduino IDE** provides a graphical interface for writing, compiling, and uploading Arduino sketches.
 
