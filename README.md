@@ -1,6 +1,6 @@
-[![Build Arduino Leonardo Kyb](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml)
-
 # Amiga 500 Keyboard - Arduino Leonardo
+
+[![Build Arduino Leonardo Kyb](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml)
 
 This guide will help you connect and map the iconic Amiga 500 keyboard to an Arduino Leonardo, allowing you to bring new life to this classic piece of hardware. By following the instructions provided, you can retrofit the Amiga 500 keyboard for modern applications while preserving its unique layout and feel.
 
@@ -8,7 +8,7 @@ For a demonstration of the original Amiga 500 keyboard in action, visit the [Ami
 
 ## Dependencies
 
-### Recommended Arduino Boards with USB Capabilities
+### Recommended Boards with USB Capabilities
 
 | Board            | Microcontroller  | Flash Memory | SRAM  | EEPROM | Clock Speed | Tested |
 |------------------|------------------|--------------|-------|--------|-------------|--------|
