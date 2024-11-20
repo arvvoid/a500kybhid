@@ -11,6 +11,7 @@
  */
 #include <Keyboard.h>
 #include <HID.h>
+#include <CircularBuffer.hpp>
 
 // Preprocessor flag to enable or disable debug mode
 // Debug mode provides verbose console output at every step.
@@ -22,6 +23,8 @@
 
 #define ENABLE_MULTIMEDIA_KEYS 1 // Enable multimedia keys (volume, play/pause, etc.)
 
+#define QUEUE_SIZE 1024 // Size of the key event queue
+
 #define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
 #define MACRO_SLOTS 5
 #define MACRO_DELAY 20 //ms between reports in macro playback
@@ -32,10 +35,10 @@
   #define EEPROM_START_ADDRESS 0
 #endif
 
-// Define bit masks for keyboard and joystick inputs
-#define BITMASK_A500CLK 0b00010000 // IO 8
-#define BITMASK_A500SP 0b00100000  // IO 9
-#define BITMASK_A500RES 0b01000000 // IO 10
+#define A500CLK_PIN 9   // Clock line pin (KCLK)
+#define A500DAT_PIN 8   // Data line pin (KDAT)
+#define A500RES_PIN 10   // Reset line pin
+
 #if ENABLE_JOYSTICKS
   #define BITMASK_JOY1 0b10011111    // IO 0..4,6
   #define BITMASK_JOY2 0b11110011    // IO A0..A5
@@ -53,6 +56,9 @@ enum KeyboardState
   WAIT_LO,
   WAIT_RES
 };
+
+CircularBuffer<uint8_t, QUEUE_SIZE> keyQueue;
+#define RESET_KEY 255 // CTRL+ALT+DEL
 
 // Macro structure
 struct Macro
@@ -171,9 +177,9 @@ uint8_t recordingMacroIndex = 0;
 #endif
 
 // Keyboard state machine variables
-KeyboardState keyboardState = SYNCH_HI;
-uint8_t bitIndex = 0;
-uint8_t currentKeyCode = 0;
+volatile KeyboardState keyboardState = SYNCH_HI;
+volatile uint8_t bitIndex = 7;
+volatile uint8_t currentKeyCode = 0;
 bool functionMode = false; // Indicates if 'Help' key is active
 bool isKeyDown = false;
 
@@ -283,6 +289,72 @@ const uint8_t keyTable[0x68] = { //US Keyboard Layout Amiga500 to HID
     }
 #endif
 
+// Interrupt Service Routine for Keyboard
+void keyboardISR() {
+  uint8_t pinState = PINB; // Read pin states
+
+  // Check for reset detection
+  if ((pinState & (1 << A500RES_PIN)) == 0 && keyboardState != WAIT_RES) {
+    // Reset detected
+    keyQueue.push(RESET_KEY);
+    keyboardState = WAIT_RES;
+    return;
+  } else if (keyboardState == WAIT_RES) {
+    if ((pinState & (1 << A500RES_PIN)) != 0) { // Reset ends
+      keyboardState = SYNCH_HI;
+    }
+    return;
+  }
+
+  // Handle other states
+  switch (keyboardState) {
+    case SYNCH_HI:
+      if ((pinState & (1 << A500CLK_PIN)) == 0) { // KCLK goes low
+        keyboardState = SYNCH_LO;
+      }
+      break;
+
+    case SYNCH_LO:
+      if ((pinState & (1 << A500CLK_PIN)) != 0) { // KCLK goes high
+        keyboardState = HANDSHAKE;
+      }
+      break;
+
+    case HANDSHAKE:
+      DDRB |= (1 << A500DAT_PIN); // Set KDAT as OUTPUT
+      PORTB &= ~(1 << A500DAT_PIN); // Set KDAT LOW
+      delayMicroseconds(85); // Pulse low for 85 microseconds
+      DDRB &= ~(1 << A500DAT_PIN); // Set KDAT as INPUT
+      keyboardState = WAIT_LO;
+      currentKeyCode = 0;
+      bitIndex = 7;
+      break;
+
+    case READ:
+      if ((pinState & (1 << A500CLK_PIN)) != 0) { // KCLK rising edge
+        if (bitIndex--) {
+          currentKeyCode |= ((pinState & (1 << A500DAT_PIN)) == 0) << bitIndex; // Accumulate bits
+          keyboardState = WAIT_LO;
+        } else {
+          // Final bit received, enqueue keycode
+          keyQueue.push(currentKeyCode); // Store key event
+          keyboardState = HANDSHAKE;    // Prepare for next key
+        }
+      }
+      break;
+
+    case WAIT_LO:
+      if ((pinState & (1 << A500CLK_PIN)) == 0) { // KCLK falling edge
+        keyboardState = READ;
+      }
+      break;
+
+    default:
+      keyboardState = SYNCH_HI; // Reset to a known state
+      break;
+  }
+}
+
 void setup()
 {
   #if DEBUG_MODE
@@ -310,8 +382,13 @@ void setup()
   HID().AppendDescriptor(&multimediaHID);
 #endif
 
-  // Initialize Keyboard (Port B)
-  DDRB &= ~(BITMASK_A500CLK | BITMASK_A500SP | BITMASK_A500RES); // Set pins as INPUT
+  // Configure pins
+  pinMode(A500CLK_PIN, INPUT_PULLUP); // KCLK
+  pinMode(A500DAT_PIN, INPUT_PULLUP); // KDAT
+  pinMode(A500RES_PIN, INPUT_PULLUP); // Reset
+
+  // Attach interrupt to KCLK pin
+  attachInterrupt(digitalPinToInterrupt(A500CLK_PIN), keyboardISR, CHANGE);
 }
 
 void loop()
@@ -320,7 +397,14 @@ void loop()
   handleJoystick1();
   handleJoystick2();
 #endif
-  handleKeyboard();
+  while (!keyQueue.isEmpty()) {
+      uint8_t keycode = keyQueue.shift(); // Dequeue the oldest event
+      if (keycode == RESET_KEY) {
+        keystroke(0x4C, 0x05); // Send CTRL+ALT+DEL
+      } else {
+        processKeyEvent(keycode);
+      }
+  }
   playMacro();
 }
 
@@ -346,171 +430,86 @@ void handleJoystick2()
 }
 #endif
 
-void handleKeyboard()
-{
-  uint8_t pinB = PINB;
+void processKeyEvent(uint8_t rawKeycode) {
+  // Determine if the event is a key press or release
+  bool isPressed = (rawKeycode & 0x01);   // LSB determines press (1) or release (0)
+  uint8_t keycode = rawKeycode & 0xFE;    // Remove the LSB to get the actual keycode
 
-  if (((pinB & BITMASK_A500RES) == 0) && keyboardState != WAIT_RES)
-  {
-    // Reset detected
-    interrupts();
-    keystroke(0x4C, 0x05); // Send CTRL+ALT+DEL
-    functionMode = false;
-    keyboardState = WAIT_RES;
-  }
-  else if (keyboardState == WAIT_RES)
-  {
-    // Waiting for reset end
-    if ((pinB & BITMASK_A500RES) != 0)
-    {
-      keyboardState = SYNCH_HI;
-    }
-  }
-  else if (keyboardState == SYNCH_HI)
-  {
-    // Sync Pulse High
-    if ((pinB & BITMASK_A500CLK) == 0)
-    {
-      keyboardState = SYNCH_LO;
-    }
-  }
-  else if (keyboardState == SYNCH_LO)
-  {
-    // Sync Pulse Low
-    if ((pinB & BITMASK_A500CLK) != 0)
-    {
-      keyboardState = HANDSHAKE;
-    }
-  }
-  else if (keyboardState == HANDSHAKE)
-  {
-    // Handshake
-    if (handshakeTimer == 0)
-    {
-      DDRB |= BITMASK_A500SP;   // Set SP pin as OUTPUT
-      PORTB &= ~BITMASK_A500SP; // Set SP pin LOW
-      handshakeTimer = millis();
-    }
-    else if (millis() - handshakeTimer > 10)
-    {
-      handshakeTimer = 0;
-      DDRB &= ~BITMASK_A500SP; // Set SP pin as INPUT
-      keyboardState = WAIT_LO;
-      currentKeyCode = 0;
-      bitIndex = 7;
-    }
-  }
-  else if (keyboardState == READ)
-  {
-    // Read key message (8 bits)
-    if ((pinB & BITMASK_A500CLK) != 0)
-    {
-      if (bitIndex--)
-      {
-        currentKeyCode |= ((pinB & BITMASK_A500SP) == 0) << bitIndex; // Accumulate bits
-        keyboardState = WAIT_LO;
-      }
-      else
-      {
-        // Read last bit (key down/up)
-        isKeyDown = ((pinB & BITMASK_A500SP) != 0); // true if key down
-        interrupts();
-        keyboardState = HANDSHAKE;
-        processKeyCode();
-      }
-    }
-  }
-  else if (keyboardState == WAIT_LO)
-  {
-    // Waiting for the next bit
-    if ((pinB & BITMASK_A500CLK) == 0)
-    {
-      noInterrupts();
-      keyboardState = READ;
-    }
-  }
-}
+  #if DEBUG_MODE
+    Serial.print("Processing key code: ");
+    Serial.println(keycode, HEX);
+  #endif
 
-void processKeyCode()
-{
-#if DEBUG_MODE
-  Serial.print("Processing key code: ");
-  Serial.println(currentKeyCode, HEX);
-#endif
-  if (currentKeyCode == 0x5F)
-  {
+  if (keycode == 0x5F) {
     // 'Help' key toggles function mode
-    functionMode = isKeyDown;
-  }
-  else if (currentKeyCode == 0x62)
-  {
-    // CapsLock key
-    keystroke(0x39, 0x00);
+    functionMode = isPressed;
     return;
   }
-  else
-  {
-    if (isKeyDown)
-    {
-      // Key down message received
-      if (functionMode)
-      {
-        // Special function with 'Help' key
-        handleFunctionModeKey();
-        return;
-      }
-      else
-      {
 
-        if(recording && !recordingSlot){
-          if(currentKeyCode >= 0x55 && currentKeyCode <= 0x59){
-            noInterrupts(); // Disable interrupts to enter critical section
-            recordingMacroSlot = macroSlotFromKeyCode(currentKeyCode);
-            memset(macros[recordingMacroSlot].keyReports, 0, sizeof(macros[recordingMacroSlot].keyReports)); // Clear macro slot
-            macros[recordingMacroSlot].length = 0;
-            recordingMacroIndex = 0;
-            recordingSlot = true;
-            interrupts(); // Enable interrupts to exit critical section
-            #if DEBUG_MODE
-              Serial.print("Recording slot selected: ");
-              Serial.println(currentMacroSlot, HEX);
-            #endif
-          }
-          return;
-        }
-
-        if (currentKeyCode == 0x5A)
-        {
-          keystroke(0x53, 0); // NumLock
-        }
-        else if (currentKeyCode == 0x5B)
-        {
-          keystroke(0x47, 0); // ScrollLock
-        }
-        else if (currentKeyCode < 0x68)
-        {
-          keyPress(currentKeyCode);
-        }
-      }
+  if(isPressed && functionMode){
+    handleFunctionModeKey(keycode);
+    return;
+  }
+  
+  if (keycode == 0x62) {
+    // CapsLock key
+    if (isPressed) {
+      keystroke(0x39, 0x00); // Send CapsLock
     }
-    else
-    {
-      // Key release message received
-      if (currentKeyCode < 0x68)
-      {
-        keyRelease(currentKeyCode);
+    return;
+  }
+
+  if (keycode == 0x5A) {
+    // NumLock key
+    if (isPressed) {
+      keystroke(0x53, 0x00); // Send NumLock
+    }
+    return;
+  }
+
+  if (keycode == 0x5B) {
+    // ScrollLock key
+    if (isPressed) {
+      keystroke(0x47, 0x00); // Send ScrollLock
+    }
+    return;
+  }
+
+  if (recording && !recordingSlot) {
+      if (isPressed && keycode >= 0x55 && keycode <= 0x59) {
+        recordingMacroSlot = macroSlotFromKeyCode(keycode);
+        memset(macros[recordingMacroSlot].keyReports, 0, sizeof(macros[recordingMacroSlot].keyReports)); // Clear macro slot
+        macros[recordingMacroSlot].length = 0;
+        recordingMacroIndex = 0;
+        recordingSlot = true;
+        #if DEBUG_MODE
+        Serial.print("Recording slot selected: ");
+        Serial.println(recordingMacroSlot, HEX);
+        #endif
       }
+      return;
+  }
+
+  if (isPressed) {
+    // Generic Key down received
+    if (keycode < 0x68) {
+      keyPress(keycode); // Map and handle the key press
+    }
+  } else {
+    // Generic Key relese received
+    if (keycode < 0x68) {
+      keyRelease(keycode); // Map and handle the key release
     }
   }
 }
 
-void handleFunctionModeKey()
+void handleFunctionModeKey(uint8_t keycode)
 {
 #if DEBUG_MODE
   Serial.print("Handling function mode key: ");
-  Serial.println(currentKeyCode, HEX);
+  Serial.println(keycode, HEX);
 #endif
-  switch (currentKeyCode)
+  switch (keycode)
   {
   case 0x50:
     keystroke(0x44, 0);
@@ -541,7 +540,7 @@ void handleFunctionModeKey()
   case 0x57:
   case 0x58:
   case 0x59:
-    playMacroSlot(macroSlotFromKeyCode(currentKeyCode));
+    playMacroSlot(macroSlotFromKeyCode(keycode));
     break; // Help + F6 to F10: Play macro in corresponding slot
 #if ENABLE_MULTIMEDIA_KEYS
   case 0x4C: // HELP + Arrow Up: Volume Up
