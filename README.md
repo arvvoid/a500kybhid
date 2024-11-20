@@ -2,9 +2,30 @@
 
 # Amiga 500 Keyboard - Arduino Leonardo
 
-Welcome to the Amiga 500 Keyboard interfacing project! This guide will help you connect and map the iconic Amiga 500 keyboard to an Arduino Leonardo, allowing you to bring new life to this classic piece of hardware. By following the instructions provided, you can retrofit the Amiga 500 keyboard for modern applications while preserving its unique layout and feel.
+This guide will help you connect and map the iconic Amiga 500 keyboard to an Arduino Leonardo, allowing you to bring new life to this classic piece of hardware. By following the instructions provided, you can retrofit the Amiga 500 keyboard for modern applications while preserving its unique layout and feel.
 
 For a demonstration of the original Amiga 500 keyboard in action, visit the [Amiga Undead GitHub repository](https://github.com/arvvoid/amiga.undead).
+
+## Dependencies
+
+### Recommended Arduino Boards with USB Capabilities
+
+| Board            | Microcontroller  | Flash Memory | SRAM  | EEPROM | Clock Speed | Tested |
+|------------------|------------------|--------------|-------|--------|-------------|--------|
+| Arduino Leonardo | ATmega32U4       | 32 KB        | 2.5 KB| 1 KB   | 16 MHz      | ✓      |
+| Arduino Micro    | ATmega32U4       | 32 KB        | 2.5 KB| 1 KB   | 16 MHz      |        |
+| SparkFun Pro Micro| ATmega32U4      | 32 KB        | 2.5 KB| 1 KB   | 16 MHz      |        |
+| Adafruit ItsyBitsy 32u4 | ATmega32U4 | 32 KB        | 2.5 KB| 1 KB   | 16 MHz     |        |
+| Teensy 2.0       | ATmega32U4       | 32 KB        | 2.5 KB| 1 KB   | 16 MHz      |        |
+
+### Libraries and Platform
+
+| Library         | Version  | Platform        | Version  |
+|-----------------|----------|-----------------|----------|
+| Keyboard        | 1.0.6+   | arduino:avr     | 1.8.6+   |
+| HID             | 1.0+     |                 |          |
+| CircularBuffer  | 1.4.0+   |                 |          |
+| EEPROM          | 2.0+     |                 |          |
 
 ## Wiring Information
 
