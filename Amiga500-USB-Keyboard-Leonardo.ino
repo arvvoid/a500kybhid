@@ -362,9 +362,7 @@ void setup()
     while (!Serial) { ; } // Wait for Serial to be ready
     Serial.println("Debug mode enabled");
   #endif
-  noInterrupts(); // Disable interrupts to enter critical section
   loadMacrosFromEEPROM();
-  interrupts(); // Enable interrupts to exit critical section
 
 #if ENABLE_JOYSTICKS
   HID().AppendDescriptor(&joystick1HID);
@@ -669,13 +667,11 @@ void startRecording()
       #if DEBUG_MODE
         Serial.println("Start recording macro");
       #endif
-      noInterrupts(); // Disable interrupts to enter critical section
       stopAllMacros();
       recordingMacroIndex = 0;
       recordingMacroSlot = 0;
       recordingSlot = false;
       recording = true;
-      interrupts(); // Enable interrupts to exit critical section
   }
 }
 
@@ -685,12 +681,10 @@ void stopRecording()
     #if DEBUG_MODE
       Serial.println("Stop recording macro");
     #endif
-      noInterrupts(); // Disable interrupts to enter critical section
       recording = false;
       recordingSlot = false;
       // Save macros to EEPROM
       saveMacrosToEEPROM();
-      interrupts(); // Enable interrupts to exit critical section
   }
 }
 
@@ -708,17 +702,14 @@ void resetMacros()
 #if DEBUG_MODE
   Serial.println("Reset macros");
 #endif
-  noInterrupts(); // Disable interrupts to enter critical section
   stopAllMacros();
   Keyboard.releaseAll();
   cleanMacros();
   saveMacrosToEEPROM();
-  interrupts(); // Enable interrupts to exit critical section
 }
 
 void playMacroSlot(uint8_t slot)
 {
-  noInterrupts(); // Disable interrupts to enter critical section
   if(!macroPlayStatus[slot].playing){
     #if DEBUG_MODE
      Serial.print("Play macro slot: ");
@@ -743,7 +734,6 @@ void playMacroSlot(uint8_t slot)
      macroPlayStatus[slot].loop = false;
     macroPlayStatus[slot].macroIndex = 0;
   }
-  interrupts(); // Enable interrupts to exit critical section
 }
 
 // Check if any macro is playing
@@ -816,7 +806,6 @@ void playMacro()
 void record_last_report(){
   if (recording && recordingSlot && recordingMacroIndex < MAX_MACRO_LENGTH)
   {
-    noInterrupts(); // Disable interrupts to enter critical section
     #if DEBUG_MODE
       Serial.print("Recording key report at index: ");
       Serial.println(macroIndex);
@@ -828,9 +817,6 @@ void record_last_report(){
     if (recordingMacroIndex >= MAX_MACRO_LENGTH)
     {
       stopRecording();
-    }
-    else{
-      interrupts(); // Enable interrupts to exit critical section
     }
   }
 }
