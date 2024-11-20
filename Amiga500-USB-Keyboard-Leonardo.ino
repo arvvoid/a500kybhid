@@ -655,9 +655,10 @@ void keystroke(uint8_t keyCode, uint8_t modifiers)
 #if ENABLE_MULTIMEDIA_KEYS
 void sendMultimediaKey(uint8_t report)
 {
-  HID().SendReport(5, report, 1);  // Send key press
+  HID().SendReport(5, &report, sizeof(report));  // Send key press
   delay(KEY_RELEASE_DELAY);  // Small delay to ensure the key press is registered
-  HID().SendReport(5, 0x00, 1);  // Send release
+  report = 0; // Release the key
+  HID().SendReport(5, &report, sizeof(report));  // Send release
 }
 #endif
 
@@ -744,6 +745,7 @@ bool isMacroPlaying()
        return true;
      }
    }
+   return false;
 }
 
 // Stop all playing macros
