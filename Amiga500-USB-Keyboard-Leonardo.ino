@@ -1,13 +1,36 @@
 /*
  * Amiga 500 Keyboard to USB HID Converter Arduino Leonardo
- * This rewrite/update and version (c) 2024 by Luka "Void" MIT License
+ * Copyright (c) 2024 by Luka "Void" MIT License
  * GitHub: https://github.com/arvvoid/
  * Contact: luka@lukavoid.xyz
+ * Repository: https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo
  * Original code and inspiration by olaf, Steve_Reaver (taken from https://forum.arduino.cc/index.php?topic=139358.15)
  *
  * This sketch converts an original Amiga 500 keyboard to a standard USB HID
  * keyboard using an Arduino Leonardo. It includes support for joystick inputs
  * and special function keys.
+ * 
+ * MIT License
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * 
+ * Readme: https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/blob/main/README.md
  */
 #include <Keyboard.h>
 #include <HID.h>
@@ -291,16 +314,16 @@ const uint8_t keyTable[0x68] = { //US Keyboard Layout Amiga500 to HID
 
 // Interrupt Service Routine for Keyboard
 void keyboardISR() {
-  uint8_t pinState = PINB; // Read pin states
+  uint8_t pinState = PINB; // Read pin states from Port B directly
 
   // Check for reset detection
-  if ((pinState & (1 << A500RES_PIN)) == 0 && keyboardState != WAIT_RES) {
+  if ((pinState & (1 << PORTB2)) == 0 && keyboardState != WAIT_RES) { // PORTB2 corresponds to A500RES_PIN
     // Reset detected
     keyQueue.push(RESET_KEY);
     keyboardState = WAIT_RES;
     return;
   } else if (keyboardState == WAIT_RES) {
-    if ((pinState & (1 << A500RES_PIN)) != 0) { // Reset ends
+    if ((pinState & (1 << PORTB2)) != 0) { // Reset ends
       keyboardState = SYNCH_HI;
     }
     return;
@@ -309,31 +332,31 @@ void keyboardISR() {
   // Handle other states
   switch (keyboardState) {
     case SYNCH_HI:
-      if ((pinState & (1 << A500CLK_PIN)) == 0) { // KCLK goes low
+      if ((pinState & (1 << PORTB1)) == 0) { // PORTB1 corresponds to A500CLK_PIN
         keyboardState = SYNCH_LO;
       }
       break;
 
     case SYNCH_LO:
-      if ((pinState & (1 << A500CLK_PIN)) != 0) { // KCLK goes high
+      if ((pinState & (1 << PORTB1)) != 0) { // PORTB1 corresponds to A500CLK_PIN
         keyboardState = HANDSHAKE;
       }
       break;
 
     case HANDSHAKE:
-      DDRB |= (1 << A500DAT_PIN); // Set KDAT as OUTPUT
-      PORTB &= ~(1 << A500DAT_PIN); // Set KDAT LOW
+      DDRB |= (1 << PORTB0); // Set KDAT (PORTB0) as OUTPUT
+      PORTB &= ~(1 << PORTB0); // Set KDAT LOW
       delayMicroseconds(85); // Pulse low for 85 microseconds
-      DDRB &= ~(1 << A500DAT_PIN); // Set KDAT as INPUT
+      DDRB &= ~(1 << PORTB0); // Set KDAT as INPUT
       keyboardState = WAIT_LO;
       currentKeyCode = 0;
       bitIndex = 7;
       break;
 
     case READ:
-      if ((pinState & (1 << A500CLK_PIN)) != 0) { // KCLK rising edge
+      if ((pinState & (1 << PORTB1)) != 0) { // PORTB1 corresponds to A500CLK_PIN
         if (bitIndex--) {
-          currentKeyCode |= ((pinState & (1 << A500DAT_PIN)) == 0) << bitIndex; // Accumulate bits
+          currentKeyCode |= ((pinState & (1 << PORTB0)) == 0) << bitIndex; // Accumulate bits
           keyboardState = WAIT_LO;
         } else {
           // Final bit received, enqueue keycode
@@ -344,7 +367,7 @@ void keyboardISR() {
       break;
 
     case WAIT_LO:
-      if ((pinState & (1 << A500CLK_PIN)) == 0) { // KCLK falling edge
+      if ((pinState & (1 << PORTB1)) == 0) { // PORTB1 corresponds to A500CLK_PIN
         keyboardState = READ;
       }
       break;
@@ -371,7 +394,7 @@ void setup()
   DDRD = (uint8_t)(~BITMASK_JOY1); // Set pins as INPUT
   PORTD = BITMASK_JOY1;            // Enable internal PULL-UP resistors
 
-  // Initialize Joystick 2 (Port F)
+  // Initialize Joystick 2 (Port C)
   DDRF = (uint8_t)(~BITMASK_JOY2); // Set pins as INPUT
   PORTF = BITMASK_JOY2;            // Enable internal PULL-UP resistors
 #endif
@@ -380,12 +403,12 @@ void setup()
   HID().AppendDescriptor(&multimediaHID);
 #endif
 
-  // Configure pins
-  pinMode(A500CLK_PIN, INPUT_PULLUP); // KCLK
-  pinMode(A500DAT_PIN, INPUT_PULLUP); // KDAT
-  pinMode(A500RES_PIN, INPUT_PULLUP); // Reset
+  // Set pin modes
+  pinMode(A500CLK_PIN, INPUT_PULLUP); // Set clock line as input with pull-up
+  pinMode(A500DAT_PIN, INPUT_PULLUP); // Set data line as input with pull-up
+  pinMode(A500RES_PIN, INPUT_PULLUP); // Set reset line as input with pull-up
 
-  // Attach interrupt to KCLK pin
+  // Attach interrupt to the clock line
   attachInterrupt(digitalPinToInterrupt(A500CLK_PIN), keyboardISR, CHANGE);
 }
 
