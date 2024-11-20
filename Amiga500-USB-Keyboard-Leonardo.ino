@@ -494,7 +494,7 @@ void processKeyEvent(uint8_t rawKeycode) {
       keyPress(keycode); // Map and handle the key press
     }
   } else {
-    // Generic Key relese received
+    // Generic Key release received
     if (keycode < 0x68) {
       keyRelease(keycode); // Map and handle the key release
     }
@@ -526,7 +526,7 @@ void handleFunctionModeKey(uint8_t keycode)
     break; // Help + F4: Stop recording and save
   case 0x54:
     macro_looping = !macro_looping;
-    break; // Help + F5: Togle loop play macro mode
+    break; // Help + F5: Toggle loop play macro mode
   case 0x41:
     stopAllMacros();
     break; // Help + Backspace: Stop any playing macro
@@ -726,7 +726,7 @@ void playMacroSlot(uint8_t slot)
     macroPlayStatus[slot].playing = true;
   }
   else{
-    //togle playing
+    //toggle playing
     #if DEBUG_MODE
      Serial.print("Stop Play macro slot: ");
      Serial.println(slot);
