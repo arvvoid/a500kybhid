@@ -21,6 +21,8 @@
 // Joystick support is only required if you are going to attach DB9 connectors and use legacy Amiga joysticks with the controller.
 #define ENABLE_JOYSTICKS 0
 
+#define ENABLE_MULTIMEDIA_KEYS 1
+
 #define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
 #define MACRO_SLOTS 5
 #define MACRO_DELAY 20 //ms between reports in macro playback
@@ -39,6 +41,258 @@
   #define BITMASK_JOY1 0b10011111    // IO 0..4,6
   #define BITMASK_JOY2 0b11110011    // IO A0..A5
 #endif
+
+enum AmigaKeys {   // ROM Default (USA0) and USA1 Console Key Mapping
+  // 0x00 - 0x0F
+  AMIGA_KEY_TILDE = 0x00,             // ` ~
+  AMIGA_KEY_1 = 0x01,                 // 1 !
+  AMIGA_KEY_2 = 0x02,                 // 2 @
+  AMIGA_KEY_3 = 0x03,                 // 3 #
+  AMIGA_KEY_4 = 0x04,                 // 4 $
+  AMIGA_KEY_5 = 0x05,                 // 5 %
+  AMIGA_KEY_6 = 0x06,                 // 6 ^
+  AMIGA_KEY_7 = 0x07,                 // 7 &
+  AMIGA_KEY_8 = 0x08,                 // 8 *
+  AMIGA_KEY_9 = 0x09,                 // 9 (
+  AMIGA_KEY_0 = 0x0A,                 // 0 )
+  AMIGA_KEY_MINUS = 0x0B,             // - _
+  AMIGA_KEY_EQUAL = 0x0C,             // = +
+  AMIGA_KEY_PIPE = 0x0D,              // |
+  AMIGA_KEY_UNDEFINED_0E = 0x0E,      // Undefined
+  AMIGA_KEY_NUMPAD_0 = 0x0F,          // Numpad 0
+
+  // 0x10 - 0x1F
+  AMIGA_KEY_Q = 0x10,                 // Q
+  AMIGA_KEY_W = 0x11,                 // W
+  AMIGA_KEY_E = 0x12,                 // E
+  AMIGA_KEY_R = 0x13,                 // R
+  AMIGA_KEY_T = 0x14,                 // T
+  AMIGA_KEY_Y = 0x15,                 // Y
+  AMIGA_KEY_U = 0x16,                 // U
+  AMIGA_KEY_I = 0x17,                 // I
+  AMIGA_KEY_O = 0x18,                 // O
+  AMIGA_KEY_P = 0x19,                 // P
+  AMIGA_KEY_LEFT_BRACKET = 0x1A,      // [ {
+  AMIGA_KEY_RIGHT_BRACKET = 0x1B,     // ] }
+  AMIGA_KEY_UNDEFINED_1C = 0x1C,      // Undefined
+  AMIGA_KEY_NUMPAD_1 = 0x1D,          // Numpad 1
+  AMIGA_KEY_NUMPAD_2 = 0x1E,          // Numpad 2
+  AMIGA_KEY_NUMPAD_3 = 0x1F,          // Numpad 3
+
+  // 0x20 - 0x2F
+  AMIGA_KEY_A = 0x20,                 // A
+  AMIGA_KEY_S = 0x21,                 // S
+  AMIGA_KEY_D = 0x22,                 // D
+  AMIGA_KEY_F = 0x23,                 // F
+  AMIGA_KEY_G = 0x24,                 // G
+  AMIGA_KEY_H = 0x25,                 // H
+  AMIGA_KEY_J = 0x26,                 // J
+  AMIGA_KEY_K = 0x27,                 // K
+  AMIGA_KEY_L = 0x28,                 // L
+  AMIGA_KEY_SEMICOLON = 0x29,         // ; :
+  AMIGA_KEY_APOSTROPHE = 0x2A,        // ' "
+  AMIGA_KEY_NON_US_TILDE = 0x2B,      // Non-US #
+  AMIGA_KEY_UNDEFINED_2C = 0x2C,      // Undefined
+  AMIGA_KEY_NUMPAD_4 = 0x2D,          // Numpad 4
+  AMIGA_KEY_NUMPAD_5 = 0x2E,          // Numpad 5
+  AMIGA_KEY_NUMPAD_6 = 0x2F,          // Numpad 6
+
+  // 0x30 - 0x3F
+  AMIGA_KEY_NON_US_BACKSLASH = 0x30,  // Non-US \ (Not on most US keyboards)
+  AMIGA_KEY_Z = 0x31,                 // Z
+  AMIGA_KEY_X = 0x32,                 // X
+  AMIGA_KEY_C = 0x33,                 // C
+  AMIGA_KEY_V = 0x34,                 // V
+  AMIGA_KEY_B = 0x35,                 // B
+  AMIGA_KEY_N = 0x36,                 // N
+  AMIGA_KEY_M = 0x37,                 // M
+  AMIGA_KEY_COMMA = 0x38,             // , <
+  AMIGA_KEY_PERIOD = 0x39,            // . >
+  AMIGA_KEY_SLASH = 0x3A,             // / ?
+  AMIGA_KEY_UNDEFINED_3B = 0x3B,      // Undefined
+  AMIGA_KEY_NUMPAD_PERIOD = 0x3C,     // Numpad .
+  AMIGA_KEY_NUMPAD_7 = 0x3D,          // Numpad 7
+  AMIGA_KEY_NUMPAD_8 = 0x3E,          // Numpad 8
+  AMIGA_KEY_NUMPAD_9 = 0x3F,          // Numpad 9
+
+  // 0x40 - 0x4F
+  AMIGA_KEY_SPACE = 0x40,             // Spacebar
+  AMIGA_KEY_BACKSPACE = 0x41,         // Backspace
+  AMIGA_KEY_TAB = 0x42,               // Tab
+  AMIGA_KEY_NUMPAD_ENTER = 0x43,      // Numpad Enter
+  AMIGA_KEY_RETURN = 0x44,            // Return
+  AMIGA_KEY_ESCAPE = 0x45,            // Escape
+  AMIGA_KEY_DELETE = 0x46,            // Delete
+  AMIGA_KEY_UNDEFINED_47 = 0x47,      // Undefined
+  AMIGA_KEY_UNDEFINED_48 = 0x48,      // Undefined
+  AMIGA_KEY_UNDEFINED_49 = 0x49,      // Undefined
+  AMIGA_KEY_NUMPAD_MINUS = 0x4A,      // Numpad -
+  AMIGA_KEY_UNDEFINED_4B = 0x4B,      // Undefined
+  AMIGA_KEY_ARROW_UP = 0x4C,          // Up Arrow
+  AMIGA_KEY_ARROW_DOWN = 0x4D,        // Down Arrow
+  AMIGA_KEY_ARROW_RIGHT = 0x4E,       // Right Arrow
+  AMIGA_KEY_ARROW_LEFT = 0x4F,        // Left Arrow
+
+  // 0x50 - 0x5F
+  AMIGA_KEY_F1 = 0x50,                // F1
+  AMIGA_KEY_F2 = 0x51,                // F2
+  AMIGA_KEY_F3 = 0x52,                // F3
+  AMIGA_KEY_F4 = 0x53,                // F4
+  AMIGA_KEY_F5 = 0x54,                // F5
+  AMIGA_KEY_F6 = 0x55,                // F6
+  AMIGA_KEY_F7 = 0x56,                // F7
+  AMIGA_KEY_F8 = 0x57,                // F8
+  AMIGA_KEY_F9 = 0x58,                // F9
+  AMIGA_KEY_F10 = 0x59,               // F10
+  AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN = 0x5A, // Numpad ( Numlock
+  AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN = 0x5B, // Numpad ) Scroll Lock
+  AMIGA_KEY_NUMPAD_SLASH = 0x5C,      // Numpad /
+  AMIGA_KEY_NUMPAD_ASTERISK_PTRSCR = 0x5D,   // Numpad * PtrScr
+  AMIGA_KEY_NUMPAD_PLUS = 0x5E,       // Numpad +
+  AMIGA_KEY_HELP = 0x5F,              // Help
+
+  // 0x60 - 0x67 (Modifiers and special keys)
+  AMIGA_KEY_SHIFT_LEFT = 0x60,        // Left Shift
+  AMIGA_KEY_SHIFT_RIGHT = 0x61,       // Right Shift
+  AMIGA_KEY_CAPS_LOCK = 0x62,         // Caps Lock
+  AMIGA_KEY_CONTROL_LEFT = 0x63,      // Left Control
+  AMIGA_KEY_ALT_LEFT = 0x64,          // Left Alt
+  AMIGA_KEY_ALT_RIGHT = 0x65,         // Right Alt
+  AMIGA_KEY_AMIGA_LEFT = 0x66,        // Left Amiga (Windows key)
+  AMIGA_KEY_AMIGA_RIGHT = 0x67,       // Right Amiga
+  AMIGA_KEY_COUNT                     // Total number of Amiga keys
+};
+
+const uint8_t keyTable[AMIGA_KEY_COUNT] = { // US Keyboard Layout Amiga500 to HID
+
+    // 0x00 - 0x0F
+    0x35, // 0x00: AMIGA_KEY_TILDE (` ~)                 -> HID KEY_GRAVE_ACCENT_AND_TILDE
+    0x1E, // 0x01: AMIGA_KEY_1 (1 ! )                    -> HID KEY_1
+    0x1F, // 0x02: AMIGA_KEY_2 (2 @ )                    -> HID KEY_2
+    0x20, // 0x03: AMIGA_KEY_3 (3 # )                    -> HID KEY_3
+    0x21, // 0x04: AMIGA_KEY_4 (4 $ )                    -> HID KEY_4
+    0x22, // 0x05: AMIGA_KEY_5 (5 % )                    -> HID KEY_5
+    0x23, // 0x06: AMIGA_KEY_6 (6 ^ )                    -> HID KEY_6
+    0x24, // 0x07: AMIGA_KEY_7 (7 & )                    -> HID KEY_7
+    0x25, // 0x08: AMIGA_KEY_8 (8 * )                    -> HID KEY_8
+    0x26, // 0x09: AMIGA_KEY_9 (9 ( )                    -> HID KEY_9
+    0x27, // 0x0A: AMIGA_KEY_0 (0 ) )                    -> HID KEY_0
+    0x2D, // 0x0B: AMIGA_KEY_MINUS (- _ )                -> HID KEY_MINUS_AND_UNDERSCORE
+    0x2E, // 0x0C: AMIGA_KEY_EQUAL (= + )                -> HID KEY_EQUAL_AND_PLUS
+    0x31, // 0x0D: AMIGA_KEY_PIPE (| )                   -> HID KEY_BACKSLASH_AND_PIPE
+    0x00, // 0x0E: AMIGA_KEY_UNDEFINED_0E                -> Undefined
+    0x62, // 0x0F: AMIGA_KEY_NUMPAD_0                    -> HID KEY_KEYPAD_0
+
+    // 0x10 - 0x1F
+    0x14, // 0x10: AMIGA_KEY_Q                           -> HID KEY_Q
+    0x1A, // 0x11: AMIGA_KEY_W                           -> HID KEY_W
+    0x08, // 0x12: AMIGA_KEY_E                           -> HID KEY_E
+    0x15, // 0x13: AMIGA_KEY_R                           -> HID KEY_R
+    0x17, // 0x14: AMIGA_KEY_T                           -> HID KEY_T
+    0x1C, // 0x15: AMIGA_KEY_Y                           -> HID KEY_Y
+    0x18, // 0x16: AMIGA_KEY_U                           -> HID KEY_U
+    0x0C, // 0x17: AMIGA_KEY_I                           -> HID KEY_I
+    0x12, // 0x18: AMIGA_KEY_O                           -> HID KEY_O
+    0x13, // 0x19: AMIGA_KEY_P                           -> HID KEY_P
+    0x2F, // 0x1A: AMIGA_KEY_LEFT_BRACKET ([ { )         -> HID KEY_LEFT_BRACKET_AND_LEFT_BRACE
+    0x30, // 0x1B: AMIGA_KEY_RIGHT_BRACKET (] } )        -> HID KEY_RIGHT_BRACKET_AND_RIGHT_BRACE
+    0x00, // 0x1C: AMIGA_KEY_UNDEFINED_1C                -> Undefined
+    0x59, // 0x1D: AMIGA_KEY_NUMPAD_1                    -> HID KEY_KEYPAD_1_END
+    0x5A, // 0x1E: AMIGA_KEY_NUMPAD_2                    -> HID KEY_KEYPAD_2_DOWN_ARROW
+    0x5B, // 0x1F: AMIGA_KEY_NUMPAD_3                    -> HID KEY_KEYPAD_3_PAGE_DOWN
+
+    // 0x20 - 0x2F
+    0x04, // 0x20: AMIGA_KEY_A                           -> HID KEY_A
+    0x16, // 0x21: AMIGA_KEY_S                           -> HID KEY_S
+    0x07, // 0x22: AMIGA_KEY_D                           -> HID KEY_D
+    0x09, // 0x23: AMIGA_KEY_F                           -> HID KEY_F
+    0x0A, // 0x24: AMIGA_KEY_G                           -> HID KEY_G
+    0x0B, // 0x25: AMIGA_KEY_H                           -> HID KEY_H
+    0x0D, // 0x26: AMIGA_KEY_J                           -> HID KEY_J
+    0x0E, // 0x27: AMIGA_KEY_K                           -> HID KEY_K
+    0x0F, // 0x28: AMIGA_KEY_L                           -> HID KEY_L
+    0x33, // 0x29: AMIGA_KEY_SEMICOLON (; : )            -> HID KEY_SEMICOLON_AND_COLON
+    0x34, // 0x2A: AMIGA_KEY_APOSTROPHE (' " )           -> HID KEY_APOSTROPHE_AND_QUOTE
+    0x32, // 0x2B: AMIGA_KEY_NON_US_TILDE (# ~ )         -> HID KEY_NON_US_HASH_AND_TILDE
+    0x00, // 0x2C: AMIGA_KEY_UNDEFINED_2C                -> Undefined
+    0x5C, // 0x2D: AMIGA_KEY_NUMPAD_4                    -> HID KEY_KEYPAD_4_LEFT_ARROW
+    0x5D, // 0x2E: AMIGA_KEY_NUMPAD_5                    -> HID KEY_KEYPAD_5
+    0x5E, // 0x2F: AMIGA_KEY_NUMPAD_6                    -> HID KEY_KEYPAD_6_RIGHT_ARROW
+
+    // 0x30 - 0x3F
+    0x64, // 0x30: AMIGA_KEY_NON_US_BACKSLASH (\ | )     -> HID KEY_NON_US_BACKSLASH_AND_PIPE
+    0x1D, // 0x31: AMIGA_KEY_Z                           -> HID KEY_Z
+    0x1B, // 0x32: AMIGA_KEY_X                           -> HID KEY_X
+    0x06, // 0x33: AMIGA_KEY_C                           -> HID KEY_C
+    0x19, // 0x34: AMIGA_KEY_V                           -> HID KEY_V
+    0x05, // 0x35: AMIGA_KEY_B                           -> HID KEY_B
+    0x11, // 0x36: AMIGA_KEY_N                           -> HID KEY_N
+    0x10, // 0x37: AMIGA_KEY_M                           -> HID KEY_M
+    0x36, // 0x38: AMIGA_KEY_COMMA (, < )                -> HID KEY_COMMA_AND_LESS_THAN
+    0x37, // 0x39: AMIGA_KEY_PERIOD (. > )               -> HID KEY_PERIOD_AND_GREATER_THAN
+    0x38, // 0x3A: AMIGA_KEY_SLASH (/ ? )                -> HID KEY_SLASH_AND_QUESTION_MARK
+    0x00, // 0x3B: AMIGA_KEY_UNDEFINED_3B                -> Undefined
+    0x63, // 0x3C: AMIGA_KEY_NUMPAD_PERIOD               -> HID KEY_KEYPAD_PERIOD
+    0x5F, // 0x3D: AMIGA_KEY_NUMPAD_7                    -> HID KEY_KEYPAD_7_HOME
+    0x60, // 0x3E: AMIGA_KEY_NUMPAD_8                    -> HID KEY_KEYPAD_8_UP_ARROW
+    0x61, // 0x3F: AMIGA_KEY_NUMPAD_9                    -> HID KEY_KEYPAD_9_PAGE_UP
+
+    // 0x40 - 0x4F
+    0x2C, // 0x40: AMIGA_KEY_SPACE                       -> HID KEY_SPACE
+    0x2A, // 0x41: AMIGA_KEY_BACKSPACE                   -> HID KEY_BACKSPACE
+    0x2B, // 0x42: AMIGA_KEY_TAB                         -> HID KEY_TAB
+    0x58, // 0x43: AMIGA_KEY_NUMPAD_ENTER                -> HID KEY_KEYPAD_ENTER
+    0x28, // 0x44: AMIGA_KEY_RETURN                      -> HID KEY_ENTER (Return)
+    0x29, // 0x45: AMIGA_KEY_ESCAPE                      -> HID KEY_ESCAPE
+    0x4C, // 0x46: AMIGA_KEY_DELETE                      -> HID KEY_DELETE
+    0x44, // 0x47: AMIGA_KEY_UNDEFINED_47                -> Undefined Used for HID F11
+    0x45, // 0x48: AMIGA_KEY_UNDEFINED_48                -> Undefined Used for HID F12
+    0x46, // 0x49: AMIGA_KEY_UNDEFINED_49                -> Undefined Used for HID PrtScr
+    0x56, // 0x4A: AMIGA_KEY_NUMPAD_MINUS                -> HID KEY_KEYPAD_MINUS
+    0x00, // 0x4B: AMIGA_KEY_UNDEFINED_4B                -> Undefined
+    0x52, // 0x4C: AMIGA_KEY_ARROW_UP                    -> HID KEY_UP_ARROW
+    0x51, // 0x4D: AMIGA_KEY_ARROW_DOWN                  -> HID KEY_DOWN_ARROW
+    0x4F, // 0x4E: AMIGA_KEY_ARROW_RIGHT                 -> HID KEY_RIGHT_ARROW
+    0x50, // 0x4F: AMIGA_KEY_ARROW_LEFT                  -> HID KEY_LEFT_ARROW
+
+    // 0x50 - 0x5F
+    0x3A, // 0x50: AMIGA_KEY_F1                          -> HID KEY_F1
+    0x3B, // 0x51: AMIGA_KEY_F2                          -> HID KEY_F2
+    0x3C, // 0x52: AMIGA_KEY_F3                          -> HID KEY_F3
+    0x3D, // 0x53: AMIGA_KEY_F4                          -> HID KEY_F4
+    0x3E, // 0x54: AMIGA_KEY_F5                          -> HID KEY_F5
+    0x3F, // 0x55: AMIGA_KEY_F6                          -> HID KEY_F6
+    0x40, // 0x56: AMIGA_KEY_F7                          -> HID KEY_F7
+    0x41, // 0x57: AMIGA_KEY_F8                          -> HID KEY_F8
+    0x42, // 0x58: AMIGA_KEY_F9                          -> HID KEY_F9
+    0x43, // 0x59: AMIGA_KEY_F10                         -> HID KEY_F10
+    0x53, // 0x5A: AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN       -> HID NumLock
+    0x47, // 0x5B: AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN        > HID ScrollLock
+    0x54, // 0x5C: AMIGA_KEY_NUMPAD_SLASH                -> HID KEY_KEYPAD_SLASH
+    0x55, // 0x5D: AMIGA_KEY_NUMPAD_ASTERISK             -> HID KEY_KEYPAD_ASTERISK
+    0x57, // 0x5E: AMIGA_KEY_NUMPAD_PLUS                 -> HID KEY_KEYPAD_PLUS
+    0x00, // 0x5F: AMIGA_KEY_HELP                        -> Undefined
+
+    // 0x60 - 0x67 (Modifiers and special keys)
+    0x02, // 0x60: AMIGA_KEY_SHIFT_LEFT                  -> HID KEY_MODIFIER_LEFT_SHIFT
+    0x20, // 0x61: AMIGA_KEY_SHIFT_RIGHT                 -> HID KEY_MODIFIER_RIGHT_SHIFT
+    0x00, // 0x62: AMIGA_KEY_CAPS_LOCK                   -> Undefined
+    0x01, // 0x63: AMIGA_KEY_CONTROL_LEFT                -> HID KEY_MODIFIER_LEFT_CONTROL
+    0x04, // 0x64: AMIGA_KEY_ALT_LEFT                    -> HID KEY_MODIFIER_LEFT_ALT
+    0x40, // 0x65: AMIGA_KEY_ALT_RIGHT                   -> HID KEY_MODIFIER_RIGHT_ALT
+    0x08, // 0x66: AMIGA_KEY_AMIGA_LEFT                  -> HID KEY_MODIFIER_LEFT_GUI (Windows/Command)
+    0x10  // 0x67: AMIGA_KEY_AMIGA_RIGHT                 -> HID KEY_MODIFIER_RIGHT_GUI (Windows/Command)
+};
+
+enum MultimediaKey {
+  MMKEY_NEXT_TRACK   = 1 << 0, // 0x01
+  MMKEY_PREV_TRACK   = 1 << 1, // 0x02
+  MMKEY_STOP         = 1 << 2, // 0x04
+  MMKEY_PLAY_PAUSE   = 1 << 3, // 0x08
+  MMKEY_MUTE         = 1 << 4, // 0x10
+  MMKEY_VOLUME_UP    = 1 << 5, // 0x20
+  MMKEY_VOLUME_DOWN  = 1 << 6  // 0x40
+};
 
 // Enumerate keyboard states
 enum KeyboardState
@@ -82,6 +336,89 @@ uint8_t recordingMacroIndex = 0;
   uint8_t currentJoy2State = 0;
   uint8_t previousJoy1State = 0xFF; // Initialize to 0xFF so that initial state triggers update
   uint8_t previousJoy2State = 0xFF;
+
+    const uint8_t joystick1Descriptor[] PROGMEM = {
+    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+    0x09, 0x05,                    // USAGE (Game Pad)
+    0xA1, 0x01,                    // COLLECTION (Application)
+    0x85, 0x03,                    // REPORT_ID (3)
+    0x09, 0x01,                    // USAGE (Pointer)
+    0xA1, 0x00,                    // COLLECTION (Physical)
+    0x09, 0x30,                    // USAGE (X)
+    0x09, 0x31,                    // USAGE (Y)
+    0x15, 0xFF,                    // LOGICAL_MINIMUM (-1)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,                    // REPORT_COUNT (2)
+    0x75, 0x02,                    // REPORT_SIZE (2)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0xC0,                          // END_COLLECTION
+    0x05, 0x09,                    // USAGE_PAGE (Button)
+    0x19, 0x01,                    // USAGE_MINIMUM (Button 1)
+    0x29, 0x02,                    // USAGE_MAXIMUM (Button 2)
+    0x15, 0x00,                    // LOGICAL_MINIMUM (0)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,                    // REPORT_COUNT (2)
+    0x75, 0x01,                    // REPORT_SIZE (1)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0xC0                           // END_COLLECTION
+  };
+
+  const uint8_t joystick2Descriptor[] PROGMEM = {
+    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+    0x09, 0x05,                    // USAGE (Game Pad)
+    0xA1, 0x01,                    // COLLECTION (Application)
+    0x85, 0x04,                    // REPORT_ID (4)
+    0x09, 0x01,                    // USAGE (Pointer)
+    0xA1, 0x00,                    // COLLECTION (Physical)
+    0x09, 0x30,                    // USAGE (X)
+    0x09, 0x31,                    // USAGE (Y)
+    0x15, 0xFF,                    // LOGICAL_MINIMUM (-1)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,                    // REPORT_COUNT (2)
+    0x75, 0x02,                    // REPORT_SIZE (2)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0xC0,                          // END_COLLECTION
+    0x05, 0x09,                    // USAGE_PAGE (Button)
+    0x19, 0x01,                    // USAGE_MINIMUM (Button 1)
+    0x29, 0x02,                    // USAGE_MAXIMUM (Button 2)
+    0x15, 0x00,                    // LOGICAL_MINIMUM (0)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,                    // REPORT_COUNT (2)
+    0x75, 0x01,                    // REPORT_SIZE (1)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0xC0                           // END_COLLECTION
+  };
+
+  // Wrap Descriptors in HIDSubDescriptor
+  HIDSubDescriptor joystick1HID(joystick1Descriptor, sizeof(joystick1Descriptor));
+  HIDSubDescriptor joystick2HID(joystick2Descriptor, sizeof(joystick2Descriptor));
+#endif
+
+#if ENABLE_MULTIMEDIA_KEYS
+  const uint8_t multimediaDescriptor[] PROGMEM = {
+    0x05, 0x0C,                    // USAGE_PAGE (Consumer Devices)
+    0x09, 0x01,                    // USAGE (Consumer Control)
+    0xA1, 0x01,                    // COLLECTION (Application)
+    0x85, 0x05,                    // REPORT_ID (5)
+    0x15, 0x00,                    // LOGICAL_MINIMUM (0)
+    0x25, 0x01,                    // LOGICAL_MAXIMUM (1)
+    0x75, 0x01,                    // REPORT_SIZE (1)
+    0x95, 0x07,                    // REPORT_COUNT (7)
+    0x09, 0xB5,                    // USAGE (Next Track)
+    0x09, 0xB6,                    // USAGE (Previous Track)
+    0x09, 0xB7,                    // USAGE (Stop)
+    0x09, 0xCD,                    // USAGE (Play/Pause)
+    0x09, 0xE2,                    // USAGE (Mute)
+    0x09, 0xE9,                    // USAGE (Volume Up)
+    0x09, 0xEA,                    // USAGE (Volume Down)
+    0x81, 0x02,                    // INPUT (Data,Var,Abs)
+    0x95, 0x01,                    // REPORT_COUNT (1)
+    0x75, 0x01,                    // REPORT_SIZE (1)
+    0x81, 0x03,                    // INPUT (Const,Var,Abs) - Padding
+    0xC0                           // END_COLLECTION
+  };
+
+  HIDSubDescriptor multimediaHID(multimediaDescriptor, sizeof(multimediaDescriptor));
 #endif
 
 // Keyboard state machine variables
@@ -91,27 +428,6 @@ uint8_t currentKeyCode = 0;
 bool functionMode = false; // Indicates if 'Help' key is active
 bool isKeyDown = false;
 
-const uint8_t keyTable[0x68] = {
-    // Tilde, 1-9, 0, sz, Accent, backslash, Num 0 (00 - 0F)
-    0x35, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24,
-    0x25, 0x26, 0x27, 0x2D, 0x2E, 0x31, 0, 0x62,
-    // Q to '+', '-', Num 1, Num 2, Num3 (10 - 1F)
-    0x14, 0x1A, 0x08, 0x15, 0x17, 0x1C, 0x18, 0x0C,
-    0x12, 0x13, 0x2F, 0x30, 0, 0x59, 0x5A, 0x5B,
-    // A to '#', '-', Num 4, Num 5, Num 6 (20 - 2F)
-    0x04, 0x16, 0x07, 0x09, 0x0A, 0x0B, 0x0D, 0x0E,
-    0x0F, 0x33, 0x34, 0x32, 0, 0x5C, 0x5D, 0x5E,
-    // '<>', Y to '-', '-', Num '.', Num 7, Num 8, Num 9 (30 - 3F)
-    0x64, 0x1D, 0x1B, 0x06, 0x19, 0x05, 0x11, 0x10,
-    0x36, 0x37, 0x38, 0, 0x63, 0x5F, 0x60, 0x61,
-    // Space, Backspace, Tab, Enter, Return, ESC, Delete, '-', '-', '-', Num '-', '-', Up, Down, Right, Left (40 - 4F)
-    0x2C, 0x2A, 0x2B, 0x58, 0x28, 0x29, 0x4C, 0,
-    0, 0, 0x56, 0, 0x52, 0x51, 0x4F, 0x50,
-    // F1-F10, '-', '-', Num '/', Num '*', Num '+', '-' (50 - 5F)
-    0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41,
-    0x42, 0x43, 0, 0, 0x54, 0x55, 0x57, 0,
-    // Modifiers: Shift left, Shift right, '-', Ctrl left, Alt left, Alt right, Win (Amiga) left, Ctrl (Amiga) right
-    0x02, 0x20, 0x00, 0x01, 0x04, 0x40, 0x08, 0x10};
 
 #if PERSISTENT_MACRO
     // Function to calculate macros checksum
@@ -208,16 +524,22 @@ void setup()
   loadMacrosFromEEPROM();
   interrupts(); // Enable interrupts to exit critical section
 
-#if ENABLE_JOYSTICKS
-  // Initialize Joystick 1 (Port D)
-  DDRD = (uint8_t)(~BITMASK_JOY1); // Set pins as INPUT
-  PORTD = BITMASK_JOY1;            // Enable internal PULL-UP resistors
+  #if ENABLE_JOYSTICKS
+    HID().AppendDescriptor(&joystick1HID);
+    HID().AppendDescriptor(&joystick2HID);
+    // Initialize Joystick 1 (Port D)
+    DDRD = (uint8_t)(~BITMASK_JOY1); // Set pins as INPUT
+    PORTD = BITMASK_JOY1;            // Enable internal PULL-UP resistors
 
-  // Initialize Joystick 2 (Port F)
-  DDRF = (uint8_t)(~BITMASK_JOY2); // Set pins as INPUT
-  PORTF = BITMASK_JOY2;            // Enable internal PULL-UP resistors
-#endif
+    // Initialize Joystick 2 (Port F)
+    DDRF = (uint8_t)(~BITMASK_JOY2); // Set pins as INPUT
+    PORTF = BITMASK_JOY2;            // Enable internal PULL-UP resistors
+  #endif
 
+  #if ENABLE_MULTIMEDIA_KEYS
+    HID().AppendDescriptor(&multimediaHID);
+  #endif
+  
   // Initialize Keyboard (Port B)
   DDRB &= ~(BITMASK_A500CLK | BITMASK_A500SP | BITMASK_A500RES); // Set pins as INPUT
 }
@@ -412,6 +734,24 @@ void processKeyCode()
   }
 }
 
+
+struct MultimediaKeyReport {
+  uint8_t reportId;
+  uint8_t keys;
+};
+
+MultimediaKeyReport multimediaKeyReport = { 5, 0 }; // Report ID 5
+
+void sendMultimediaKey(uint8_t keyBit) {
+  multimediaKeyReport.keys |= keyBit; // Set the key bit
+  HID().SendReport(multimediaKeyReport.reportId, &multimediaKeyReport.keys, sizeof(multimediaKeyReport.keys));
+}
+
+void releaseMultimediaKey(uint8_t keyBit) {
+  multimediaKeyReport.keys &= ~keyBit; // Clear the key bit
+  HID().SendReport(multimediaKeyReport.reportId, &multimediaKeyReport.keys, sizeof(multimediaKeyReport.keys));
+}
+
 void handleFunctionModeKey()
 {
 #if DEBUG_MODE
@@ -451,8 +791,62 @@ void handleFunctionModeKey()
   case 0x59:
     playMacroSlot(macroSlotFromKeyCode(currentKeyCode));
     break; // Help + F6 to F10: Play macro in corresponding slot
+#if ENABLE_MULTIMEDIA_KEYS
+  case 0x4C: // HELP + Arrow Up: Volume Up
+    sendMultimediaKey(MMKEY_VOLUME_UP); // Bit 5: Volume Up
+    delay(2); // Pause for release
+    releaseMultimediaKey(MMKEY_VOLUME_UP);
+    break;
+  case 0x4D: // HELP + Arrow Down: Volume Down
+    sendMultimediaKey(MMKEY_VOLUME_DOWN); // Bit 6: Volume Down
+    delay(2); // Pause for release
+    releaseMultimediaKey(MMKEY_VOLUME_DOWN);
+    break;
+  case 0x4E: // HELP + Arrow Right: Next Track
+    sendMultimediaKey(MMKEY_NEXT_TRACK); // Bit 0: Next Track
+    delay(2); // Pause for release
+    releaseMultimediaKey(MMKEY_NEXT_TRACK);
+    break;
+  case 0x4F: // HELP + Arrow Left: Previous Track
+    sendMultimediaKey(MMKEY_PREV_TRACK); // Bit 1: Previous Track
+    delay(2); // Pause for release
+    releaseMultimediaKey(MMKEY_PREV_TRACK);
+    break;
+  case 0x44: // HELP + Enter: Play/Pause
+    sendMultimediaKey(MMKEY_PLAY_PAUSE); // Bit 3: Play/Pause
+    delay(2); // Pause for release
+    releaseMultimediaKey(MMKEY_PLAY_PAUSE);
+    break;
+  case 0x40: // HELP + Space: Stop
+    sendMultimediaKey(MMKEY_STOP); // Bit 2: Stop
+    delay(2); // Pause for release
+    releaseMultimediaKey(MMKEY_STOP);
+    break;
+  case AMIGA_KEY_M: // HELP + Right ALT: Mute
+    sendMultimediaKey(MMKEY_MUTE); // Bit 4: Mute
+    delay(2); // Pause for release
+    releaseMultimediaKey(MMKEY_MUTE);
+    break;
+#endif
   default:
     break;
+  }
+}
+
+bool isAmigaModifierKey(uint8_t keyCode)
+{
+  switch (keyCode)
+  {
+    case AMIGA_KEY_SHIFT_LEFT:
+    case AMIGA_KEY_SHIFT_RIGHT:
+    case AMIGA_KEY_CONTROL_LEFT:
+    case AMIGA_KEY_ALT_LEFT:
+    case AMIGA_KEY_ALT_RIGHT:
+    case AMIGA_KEY_AMIGA_LEFT:
+    case AMIGA_KEY_AMIGA_RIGHT:
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -659,7 +1053,7 @@ void playMacro()
                 {
                         // Send the key report
                         HID().SendReport(2, &macros[macro_slot].keyReports[macroPlayStatus[macro_slot].macroIndex], sizeof(KeyReport));
-                        // Release all keys (non-blocking)
+                        delay(2);
                         Keyboard.releaseAll();
                         // Move to the next key in the macro
                         macroPlayStatus[macro_slot].macroIndex++;
