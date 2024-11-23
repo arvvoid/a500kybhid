@@ -131,7 +131,7 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 | **Help + Arrow Left**         | Previous Track          |
 | **Help + Enter**              | Play/Pause              |
 | **Help + Space**              | Stop                    |
-| **Help + Right ALT**          | Mute                    |
+| **Help + M**                  | Mute                    |
 
 ### NumLock
 
