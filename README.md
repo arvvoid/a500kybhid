@@ -1,10 +1,31 @@
-[![Build Arduino Leonardo Kyb](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml)
-
 # Amiga 500 Keyboard - Arduino Leonardo
 
-Welcome to the Amiga 500 Keyboard interfacing project! This guide will help you connect and map the iconic Amiga 500 keyboard to an Arduino Leonardo, allowing you to bring new life to this classic piece of hardware. By following the instructions provided, you can retrofit the Amiga 500 keyboard for modern applications while preserving its unique layout and feel.
+[![Build Arduino Leonardo Kyb](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml)
+
+This guide will help you connect and map the iconic Amiga 500 keyboard to an Arduino Leonardo, allowing you to bring new life to this classic piece of hardware. By following the instructions provided, you can retrofit the Amiga 500 keyboard for modern applications while preserving its unique layout and feel.
 
 For a demonstration of the original Amiga 500 keyboard in action, visit the [Amiga Undead GitHub repository](https://github.com/arvvoid/amiga.undead).
+
+## Dependencies
+
+### Recommended Boards with USB Capabilities
+
+| Board            | Microcontroller  | Flash Memory | SRAM  | EEPROM | Clock Speed | Tested |
+|------------------|------------------|--------------|-------|--------|-------------|--------|
+| Arduino Leonardo | ATmega32U4       | 32 KB        | 2.5 KB| 1 KB   | 16 MHz      | ✓      |
+| Arduino Micro    | ATmega32U4       | 32 KB        | 2.5 KB| 1 KB   | 16 MHz      |        |
+| SparkFun Pro Micro| ATmega32U4      | 32 KB        | 2.5 KB| 1 KB   | 16 MHz      |        |
+| Adafruit ItsyBitsy 32u4 | ATmega32U4 | 32 KB        | 2.5 KB| 1 KB   | 16 MHz     |        |
+| Teensy 2.0       | ATmega32U4       | 32 KB        | 2.5 KB| 1 KB   | 16 MHz      |        |
+
+### Libraries and Platform
+
+| Library         | Version  | Platform        | Version  |
+|-----------------|----------|-----------------|----------|
+| Keyboard        | 1.0.6+   | arduino:avr     | 1.8.6+   |
+| HID             | 1.0+     |                 |          |
+| CircularBuffer  | 1.4.0+   |                 |          |
+| EEPROM          | 2.0+     |                 |          |
 
 ## Wiring Information
 
@@ -31,6 +52,48 @@ To connect the Amiga 500 keyboard to the Arduino Leonardo, refer to the followin
 - **GND (Green, Pin 6)**: Connects to the **GND** pin on the Arduino.
 - **LED1 (Blue, Pin 7)**: Connects to **5V** for indicating power.
 - **LED2 (Purple, Pin 8)**: Not connected.
+
+Amiga keyboard specs: http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0173.html
+```
+The keyboard transmits 8-bit data words serially to the main unit. Before
+the transmission starts, both KCLK and KDAT are high.  The keyboard starts
+the transmission by putting out the first data bit (on KDAT), followed by
+a pulse on KCLK (low then high); then it puts out the second data bit and
+pulses KCLK until all eight data bits have been sent.  After the end of
+the last KCLK pulse, the keyboard pulls KDAT high again.
+
+When the computer has received the eighth bit, it must pulse KDAT low for
+at least 1 (one) microsecond, as a handshake signal to the keyboard.  The
+handshake detection on the keyboard end will typically use a hardware
+latch.  The keyboard must be able to detect pulses greater than or equal
+to 1 microsecond.  Software MUST pulse the line low for 85 microseconds to
+ensure compatibility with all keyboard models.
+
+All codes transmitted to the computer are rotated one bit before
+transmission.  The transmitted order is therefore 6-5-4-3-2-1-0-7. The
+reason for this is to transmit the  up/down flag  last, in order to cause
+a key-up code to be transmitted in case the keyboard is forced to restore
+ lost sync  (explained in more detail below).
+
+The KDAT line is active low; that is, a high level (+5V) is interpreted as
+0, and a low level (0V) is interpreted as 1.
+
+             _____   ___   ___   ___   ___   ___   ___   ___   _________
+        KCLK      \_/   \_/   \_/   \_/   \_/   \_/   \_/   \_/
+             ___________________________________________________________
+        KDAT    \_____X_____X_____X_____X_____X_____X_____X_____/
+                  (6)   (5)   (4)   (3)   (2)   (1)   (0)   (7)
+
+                 First                                     Last
+                 sent                                      sent
+
+The keyboard processor sets the KDAT line about 20 microseconds before it
+pulls KCLK low.  KCLK stays low for about 20 microseconds, then goes high
+again.  The processor waits another 20 microseconds before changing KDAT.
+
+Therefore, the bit rate during transmission is about 60 microseconds per
+bit, or 17 kbits/sec.
+```
 
 ---
 
@@ -59,6 +122,16 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 | **Help + F8**                 | Play macro slot 3      |
 | **Help + F9**                 | Play macro slot 4      |
 | **Help + F10**                | Play macro slot 5      |
+|-------------------------------|-------------------------|
+| Key Combination (Multimedia)  | Function                |
+|-------------------------------|-------------------------|
+| **Help + Arrow Up**           | Volume Up               |
+| **Help + Arrow Down**         | Volume Down             |
+| **Help + Arrow Right**        | Next Track              |
+| **Help + Arrow Left**         | Previous Track          |
+| **Help + Enter**              | Play/Pause              |
+| **Help + Space**              | Stop                    |
+| **Help + Right ALT**          | Mute                    |
 
 ### NumLock
 
@@ -136,7 +209,70 @@ This guide will help you compile and upload the Amiga 500 Keyboard converter cod
 
 ---
 
-## Option 1: Arduino CLI (Command Line)
+## Option 1: Provided makefile (Arduino CLI)
+
+This method uses a Makefile to automate the process of compiling and uploading the sketch. It also handles the installation of the Arduino CLI, required cores, and libraries.
+
+### Requirements
+
+- Make utility installed on your system
+
+### Steps
+
+1. **Install Arduino CLI**:
+   - If you don't have the Arduino CLI installed, you can install it using the provided Makefile:
+     ```sh
+     make install-arduino-cli
+     ```
+
+2. **Install Required Core**:
+   - Install the required core for the Arduino Leonardo:
+     ```sh
+     make install-core
+     ```
+
+3. **Install Required Libraries**:
+   - Install the required libraries:
+     ```sh
+     make install-libraries
+     ```
+
+4. **Update Cores and Libraries**:
+   - Ensure all cores and libraries are up to date:
+     ```sh
+     make update-cores-libraries
+     ```
+
+5. **Compile the Sketch**:
+   - Compile the sketch with warnings enabled:
+     ```sh
+     make verify
+     ```
+
+6. **Upload the Sketch**:
+   - Compile and upload the sketch to the Arduino Leonardo:
+     ```sh
+     make upload
+     ```
+
+7. **Clean Build Artifacts**:
+   - Remove build artifacts:
+     ```sh
+     make clean
+     ```
+
+### Makefile Targets
+
+- `make help`: Show help
+- `make verify`: Compile the sketch with warnings enabled.
+- `make upload`: Compile and upload the sketch to the Arduino Leonardo.
+- `make clean`: Remove build artifacts.
+- `make install-arduino-cli`: Install the Arduino CLI.
+- `make install-core`: Install the required core for the Arduino Leonardo.
+- `make install-libraries`: Install the required libraries.
+- `make update-cores-libraries`: Update all cores and libraries.
+
+## Option 2: Arduino CLI (Manual, Command Line)
 
 This method is ideal for users comfortable with the command line. **Arduino CLI** allows for efficient building and uploading.
 
@@ -158,6 +294,7 @@ This method is ideal for users comfortable with the command line. **Arduino CLI*
    arduino-cli core update-index
    arduino-cli core install arduino:avr
    arduino-cli lib install "Keyboard"
+   arduino-cli lib install "CircularBuffer"
    ```
 
 3. **Connect Arduino Leonardo via USB** and identify the port:
@@ -183,7 +320,7 @@ This method is ideal for users comfortable with the command line. **Arduino CLI*
 
 ---
 
-## Option 2: Arduino IDE (Beginner-Friendly)
+## Option 3: Arduino IDE (Beginner-Friendly)
 
 The **Arduino IDE** provides a graphical interface for writing, compiling, and uploading Arduino sketches.
 
@@ -195,6 +332,7 @@ The **Arduino IDE** provides a graphical interface for writing, compiling, and u
 2. **Install the Keyboard Library**:
    - In the Arduino IDE, go to Tools > Manage Libraries....
    - In the Library Manager, search for "Keyboard" and install the Keyboard library.
+   - In the Library Manager, search for "CircularBuffer" and install the CircularBuffer library.
 
 3. **Open Your Sketch**:
    - Launch the Arduino IDE.
@@ -226,6 +364,41 @@ The **Arduino IDE** provides a graphical interface for writing, compiling, and u
   - Ensure correct board and port selection.
   - Double-check wiring connections.
 
+# Wiring Guide for Dual Joysticks
+
+## Joystick 1
+
+| DB9 Pin | Joystick Signal   | Arduino Pin |
+|---------|-------------------|-------------|
+| 1       | Up                | Pin 0       |
+| 2       | Down              | Pin 1       |
+| 3       | Left              | Pin 2       |
+| 4       | Right             | Pin 3       |
+| 5       | Button 1 (Fire)   | Pin 4       |
+| 6       | +5V (Optional)    | +5V         |
+| 7       | Ground            | GND         |
+| 8       | Button 2 (Optional)| Pin 6      |
+
+## Joystick 2
+
+| DB9 Pin | Joystick Signal   | Arduino Pin |
+|---------|-------------------|-------------|
+| 1       | Up                | Pin A0      |
+| 2       | Down              | Pin A1      |
+| 3       | Left              | Pin A2      |
+| 4       | Right             | Pin A3      |
+| 5       | Button 1 (Fire)   | Pin A4      |
+| 6       | +5V (Optional)    | +5V         |
+| 7       | Ground            | GND         |
+| 8       | Button 2 (Optional)| Pin A5      |
+
+## Notes
+- Set the `ENABLE_JOYSTICKS` flag to `1` in the code if you want to compile joystick support.
+- Joystick functionality is experimental and lightly tested.
+
 ## TODO
 
-- [ ] Add an optional Piezo Buzzer to the Leonardo to produce tones for better macro recording user feedback
+- [ ] Implement a processing queue for managing keypresses efficiently.
+- [ ] Add an optional Piezo Buzzer to the Leonardo for audio feedback, providing better user experience during macro recording.
+- [ ] Multiple layouts.
+- [ ] Remap any key on the fly
