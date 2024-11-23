@@ -23,11 +23,13 @@
 
 #define ENABLE_MULTIMEDIA_KEYS 1
 
+#define PERSISTENT_MACRO 1 // Save macros to EEPROM
+
 #define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
 #define MACRO_SLOTS 5
-#define MACRO_DELAY 100     // ms between reports in macro playback
+#define MACRO_DELAY 100    // ms between reports in macro playback
 #define CONCURENT_MACROS 1 // Allow multiple macros to be played at the same time
-#define PERSISTENT_MACRO 1 // Save macros to EEPROM
+#define MACRO_SAVE_VERSION 2
 
 #define PROGRAMMATIC_KEYS_RELEASE 2 // delay between press and release on programmatic keys (send keystrokes, macros...)
 
@@ -286,7 +288,7 @@ const uint8_t keyTable[AMIGA_KEY_COUNT] = {
     0x04, // 0x64: AMIGA_KEY_ALT_LEFT                    -> HID KEY_MODIFIER_LEFT_ALT
     0x40, // 0x65: AMIGA_KEY_ALT_RIGHT                   -> HID KEY_MODIFIER_RIGHT_ALT
     0x08, // 0x66: AMIGA_KEY_AMIGA_LEFT                  -> HID KEY_MODIFIER_LEFT_GUI (Windows/Command)
-    0x10  // 0x67: AMIGA_KEY_AMIGA_RIGHT                 -> HID KEY_MODIFIER_RIGHT_GUI (Windows/Command)
+    0x10  // 0x67: AMIGA_KEY_AMIGA_RIGHT                 -> HID KEY_MODIFIER_RIGHT_CONTROL
 };
 
 enum MultimediaKey
@@ -445,15 +447,25 @@ bool isKeyDown = false;
 
 #if PERSISTENT_MACRO
 // Function to calculate macros checksum
-uint8_t calculateChecksum(Macro *macros, int length)
+uint32_t adler32(Macro *macros, size_t len)
 {
-  uint8_t checksum = 0;
+#if DEBUG_MODE
+  Serial.println("Calculation checksum");
+  Serial.print("Size of Macros in bytes: ");
+  Serial.println(len);
+#endif
   uint8_t *data = (uint8_t *)macros;
-  for (int i = 0; i < length; i++)
+  uint32_t A = 1; // Initial value for A
+  uint32_t B = 0; // Initial value for B
+  const uint32_t MOD_ADLER = 65521;
+
+  for (size_t i = 0; i < len; i++)
   {
-    checksum ^= data[i];
+    A = (A + data[i]) % MOD_ADLER;
+    B = (B + A) % MOD_ADLER;
   }
-  return checksum;
+
+  return (B << 16) | A;
 }
 
 // Function to save macros to EEPROM
@@ -463,6 +475,9 @@ void saveMacrosToEEPROM()
   Serial.println("Saving macros to EEPROM");
 #endif
   int address = EEPROM_START_ADDRESS;
+  uint8_t save_version = MACRO_SAVE_VERSION;
+  EEPROM.put(address, save_version);
+  address += sizeof(save_version);
   for (int i = 0; i < MACRO_SLOTS; i++)
   {
     for (int j = 0; j < MAX_MACRO_LENGTH; j++)
@@ -474,7 +489,7 @@ void saveMacrosToEEPROM()
     address += sizeof(macros[i].length);
   }
   // Calculate and save checksum
-  uint8_t checksum = calculateChecksum(macros, sizeof(macros));
+  uint32_t checksum = adler32(macros, sizeof(macros));
   EEPROM.put(address, checksum);
 #if DEBUG_MODE
   Serial.println("Saving macros to EEPROM Done!");
@@ -488,6 +503,17 @@ bool loadMacrosFromEEPROM()
   Serial.println("Loading macros from EEPROM");
 #endif
   int address = EEPROM_START_ADDRESS;
+  uint8_t save_version;
+  EEPROM.get(address, save_version);
+  address += sizeof(save_version);
+  if (save_version != MACRO_SAVE_VERSION)
+  {
+#if DEBUG_MODE
+    Serial.println("Save version mismatch, clearing macros");
+#endif
+    cleanMacros();
+    return false;
+  }
   for (int i = 0; i < MACRO_SLOTS; i++)
   {
     for (int j = 0; j < MAX_MACRO_LENGTH; j++)
@@ -498,9 +524,9 @@ bool loadMacrosFromEEPROM()
     EEPROM.get(address, macros[i].length);
     address += sizeof(macros[i].length);
   }
-  uint8_t storedChecksum;
+  uint32_t storedChecksum;
   EEPROM.get(address, storedChecksum);
-  uint8_t calculatedChecksum = calculateChecksum(macros, sizeof(macros));
+  uint32_t calculatedChecksum = adler32(macros, sizeof(macros));
   // if checksum bad make sure to blank the memory of the macros array to not have garbage there
   if (storedChecksum != calculatedChecksum)
   {
@@ -1028,7 +1054,7 @@ void resetMacros()
 void playMacroSlot(uint8_t slot)
 {
   noInterrupts(); // Disable interrupts to enter critical section
-  if (!macroPlayStatus[slot].playing && nMacrosPlaying()<CONCURENT_MACROS)
+  if (!macroPlayStatus[slot].playing && nMacrosPlaying() < CONCURENT_MACROS)
   {
 #if DEBUG_MODE
     Serial.print("Play macro slot: ");
