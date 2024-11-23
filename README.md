@@ -122,7 +122,7 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 | **Help + F8**                 | Play macro slot 3      |
 | **Help + F9**                 | Play macro slot 4      |
 | **Help + F10**                | Play macro slot 5      |
-|-------------------------------|-------------------------|
+
 | Key Combination (Multimedia)  | Function                |
 |-------------------------------|-------------------------|
 | **Help + Arrow Up**           | Volume Up               |
