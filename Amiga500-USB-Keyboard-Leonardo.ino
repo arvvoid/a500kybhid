@@ -25,7 +25,8 @@
 
 #define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
 #define MACRO_SLOTS 5
-#define MACRO_DELAY 20     // ms between reports in macro playback
+#define MACRO_DELAY 30     // ms between reports in macro playback
+#define CONCURENT_MACROS 1 // Allow multiple macros to be played at the same time
 #define PERSISTENT_MACRO 1 // Save macros to EEPROM
 
 #define PROGRAMMATIC_KEYS_RELEASE 2 // delay between press and release on programmatic keys (send keystrokes, macros...)
@@ -1027,7 +1028,7 @@ void resetMacros()
 void playMacroSlot(uint8_t slot)
 {
   noInterrupts(); // Disable interrupts to enter critical section
-  if (!macroPlayStatus[slot].playing)
+  if (!macroPlayStatus[slot].playing && nMacrosPlaying()<CONCURENT_MACROS)
   {
 #if DEBUG_MODE
     Serial.print("Play macro slot: ");
@@ -1069,6 +1070,19 @@ bool isMacroPlaying()
     }
   }
   return false;
+}
+
+uint8_t nMacrosPlaying()
+{
+  uint8_t n = 0;
+  for (int i = 0; i < MACRO_SLOTS; i++)
+  {
+    if (macroPlayStatus[i].playing)
+    {
+      n++;
+    }
+  }
+  return n;
 }
 
 // Stop all playing macros
