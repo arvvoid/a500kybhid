@@ -12,7 +12,6 @@
 
 #include <Keyboard.h>
 #include <HID.h>
-#include <CircularBuffer.hpp>
 
 // Preprocessor flag to enable or disable debug mode
 // Debug mode provides verbose console output at every step.
@@ -1079,7 +1078,7 @@ void playMacro()
                         HID().SendReport(2, &macros[macro_slot].keyReports[macroPlayStatus[macro_slot].macroIndex], sizeof(KeyReport));
                         delay(PROGRAMMATIC_KEYS_RELEASE);
                         releaseAll();
-                        // Move to the next key in the macro
+                        // Move to the next report in the macro
                         macroPlayStatus[macro_slot].macroIndex++;
                 }
 

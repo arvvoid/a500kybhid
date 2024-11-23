@@ -24,7 +24,6 @@ For a demonstration of the original Amiga 500 keyboard in action, visit the [Ami
 |-----------------|----------|-----------------|----------|
 | Keyboard        | 1.0.6+   | arduino:avr     | 1.8.6+   |
 | HID             | 1.0+     |                 |          |
-| CircularBuffer  | 1.4.0+   |                 |          |
 | EEPROM          | 2.0+     |                 |          |
 
 ## Wiring Information
@@ -112,6 +111,7 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 | **Help + F1**                 | F11                    |
 | **Help + F2**                 | F12                    |
 | **Help + Ptr Sc** (on numpad) | Print Screen           |
+| **Help + 0**      (on numpad) | Insert                 |
 | **Help + F3**                 | Record macro           |
 | **Help + F4**                 | Save macro             |
 | **Help + F5**                 | Toggle looping macro   |
