@@ -25,7 +25,7 @@
 
 #define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
 #define MACRO_SLOTS 5
-#define MACRO_DELAY 30     // ms between reports in macro playback
+#define MACRO_DELAY 100     // ms between reports in macro playback
 #define CONCURENT_MACROS 1 // Allow multiple macros to be played at the same time
 #define PERSISTENT_MACRO 1 // Save macros to EEPROM
 
