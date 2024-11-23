@@ -1,6 +1,12 @@
 name: Build and Verify Sketch
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -15,13 +21,12 @@ jobs:
 
     - name: Install Arduino core
       run: |
-        arduino-cli core update-index
-        arduino-cli core install arduino:avr
+        make install-core
 
-    - name: Install Keyboard library
+    - name: Install libraries
       run: |
-        arduino-cli lib install "Keyboard"
+        make install-libraries
 
     - name: Compile Sketch
       run: |
-        arduino-cli compile --fqbn arduino:avr:leonardo --verify Amiga500-USB-Keyboard-Leonardo.ino
+        make verify
