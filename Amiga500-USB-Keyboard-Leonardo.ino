@@ -12,6 +12,7 @@
 
 #include <Keyboard.h>
 #include <HID.h>
+#include <CircularBuffer.hpp>
 
 // Preprocessor flag to enable or disable debug mode
 // Debug mode provides verbose console output at every step.
@@ -27,6 +28,8 @@
 #define MACRO_SLOTS 5
 #define MACRO_DELAY 20 //ms between reports in macro playback
 #define PERSISTENT_MACRO 1 // Save macros to EEPROM
+
+#define PROGRAMMATIC_KEYS_RELEASE 2 // delay between press and release on programmatic keys (send keystrokes, macros...)
 
 #if PERSISTENT_MACRO
   #include <EEPROM.h>
@@ -319,8 +322,16 @@ struct MacroPlayStatus
   uint8_t macroIndex;
 };
 
+struct MultimediaKeyReport {
+  uint8_t reportId;
+  uint8_t keys;
+};
+
+MultimediaKeyReport multimediaKeyReport = { 5, 0 };
+
 // Global variables
 KeyReport keyReport;
+KeyReport prevkeyReport;
 uint32_t handshakeTimer = 0;
 Macro macros[MACRO_SLOTS]; // 5 macro slots
 MacroPlayStatus macroPlayStatus[MACRO_SLOTS];
@@ -524,6 +535,9 @@ void setup()
   loadMacrosFromEEPROM();
   interrupts(); // Enable interrupts to exit critical section
 
+  memset(&keyReport, 0x00, sizeof(KeyReport));
+  memset(&prevkeyReport, 0xFF, sizeof(KeyReport));
+
   #if ENABLE_JOYSTICKS
     HID().AppendDescriptor(&joystick1HID);
     HID().AppendDescriptor(&joystick2HID);
@@ -661,6 +675,39 @@ void handleKeyboard()
   }
 }
 
+void resetReport()
+{
+  keyReport.modifiers = 0;
+  for (uint8_t i = 0; i < 6; i++)
+  {
+    keyReport.keys[i] = 0;
+  }
+}
+
+void sendReport()
+{
+  if (memcmp(&keyReport, &prevkeyReport, sizeof(KeyReport)) != 0)
+  {
+    HID().SendReport(2, &keyReport, sizeof(KeyReport));
+    memcpy(&prevkeyReport, &keyReport, sizeof(KeyReport));
+  }
+}
+
+void releaseAll(){
+  resetReport();
+  sendReport();
+}
+
+void sendMultimediaKey(uint8_t keyBit) {
+  multimediaKeyReport.keys |= keyBit; // Set the key bit
+  HID().SendReport(multimediaKeyReport.reportId, &multimediaKeyReport.keys, sizeof(multimediaKeyReport.keys));
+}
+
+void releaseMultimediaKey(uint8_t keyBit) {
+  multimediaKeyReport.keys &= ~keyBit; // Clear the key bit
+  HID().SendReport(multimediaKeyReport.reportId, &multimediaKeyReport.keys, sizeof(multimediaKeyReport.keys));
+}
+
 void processKeyCode()
 {
 #if DEBUG_MODE
@@ -734,24 +781,6 @@ void processKeyCode()
   }
 }
 
-
-struct MultimediaKeyReport {
-  uint8_t reportId;
-  uint8_t keys;
-};
-
-MultimediaKeyReport multimediaKeyReport = { 5, 0 }; // Report ID 5
-
-void sendMultimediaKey(uint8_t keyBit) {
-  multimediaKeyReport.keys |= keyBit; // Set the key bit
-  HID().SendReport(multimediaKeyReport.reportId, &multimediaKeyReport.keys, sizeof(multimediaKeyReport.keys));
-}
-
-void releaseMultimediaKey(uint8_t keyBit) {
-  multimediaKeyReport.keys &= ~keyBit; // Clear the key bit
-  HID().SendReport(multimediaKeyReport.reportId, &multimediaKeyReport.keys, sizeof(multimediaKeyReport.keys));
-}
-
 void handleFunctionModeKey()
 {
 #if DEBUG_MODE
@@ -760,7 +789,7 @@ void handleFunctionModeKey()
 #endif
   switch (currentKeyCode)
   {
-  case 0x50:
+  case AMIGA_KEY_F1:
     keystroke(0x44, 0);
     break; // F11
   case 0x51:
@@ -793,39 +822,25 @@ void handleFunctionModeKey()
     break; // Help + F6 to F10: Play macro in corresponding slot
 #if ENABLE_MULTIMEDIA_KEYS
   case 0x4C: // HELP + Arrow Up: Volume Up
-    sendMultimediaKey(MMKEY_VOLUME_UP); // Bit 5: Volume Up
-    delay(2); // Pause for release
-    releaseMultimediaKey(MMKEY_VOLUME_UP);
+    multimediaKeystroke(MMKEY_VOLUME_UP); // Bit 5: Volume Up
     break;
   case 0x4D: // HELP + Arrow Down: Volume Down
-    sendMultimediaKey(MMKEY_VOLUME_DOWN); // Bit 6: Volume Down
-    delay(2); // Pause for release
-    releaseMultimediaKey(MMKEY_VOLUME_DOWN);
+    multimediaKeystroke(MMKEY_VOLUME_DOWN); // Bit 6: Volume Down
     break;
   case 0x4E: // HELP + Arrow Right: Next Track
-    sendMultimediaKey(MMKEY_NEXT_TRACK); // Bit 0: Next Track
-    delay(2); // Pause for release
-    releaseMultimediaKey(MMKEY_NEXT_TRACK);
+    multimediaKeystroke(MMKEY_NEXT_TRACK); // Bit 0: Next Track
     break;
   case 0x4F: // HELP + Arrow Left: Previous Track
-    sendMultimediaKey(MMKEY_PREV_TRACK); // Bit 1: Previous Track
-    delay(2); // Pause for release
-    releaseMultimediaKey(MMKEY_PREV_TRACK);
+    multimediaKeystroke(MMKEY_PREV_TRACK); // Bit 1: Previous Track
     break;
   case 0x44: // HELP + Enter: Play/Pause
-    sendMultimediaKey(MMKEY_PLAY_PAUSE); // Bit 3: Play/Pause
-    delay(2); // Pause for release
-    releaseMultimediaKey(MMKEY_PLAY_PAUSE);
+    multimediaKeystroke(MMKEY_PLAY_PAUSE); // Bit 3: Play/Pause
     break;
   case 0x40: // HELP + Space: Stop
-    sendMultimediaKey(MMKEY_STOP); // Bit 2: Stop
-    delay(2); // Pause for release
-    releaseMultimediaKey(MMKEY_STOP);
+    multimediaKeystroke(MMKEY_STOP); // Bit 2: Stop
     break;
   case AMIGA_KEY_M: // HELP + Right ALT: Mute
-    sendMultimediaKey(MMKEY_MUTE); // Bit 4: Mute
-    delay(2); // Pause for release
-    releaseMultimediaKey(MMKEY_MUTE);
+    multimediaKeystroke(MMKEY_MUTE); // Bit 4: Mute
     break;
 #endif
   default:
@@ -857,7 +872,7 @@ void keyPress(uint8_t keyCode)
   Serial.println(keyCode, HEX);
 #endif
   uint8_t hidCode = keyTable[keyCode];
-  if (keyCode > 0x5F)
+  if (isAmigaModifierKey(keyCode))
   {
     keyReport.modifiers |= hidCode; // Modifier key
   }
@@ -872,7 +887,7 @@ void keyPress(uint8_t keyCode)
       }
     }
   }
-  HID().SendReport(2, &keyReport, sizeof(keyReport));
+  sendReport();
   #if DEBUG_MODE
     printKeyReport();
   #endif
@@ -886,7 +901,7 @@ void keyRelease(uint8_t keyCode)
   Serial.println(keyCode, HEX);
 #endif
   uint8_t hidCode = keyTable[keyCode];
-  if (keyCode > 0x5F)
+  if (isAmigaModifierKey(keyCode))
   {
     keyReport.modifiers &= ~hidCode; // Modifier key
   }
@@ -900,7 +915,7 @@ void keyRelease(uint8_t keyCode)
       }
     }
   }
-  HID().SendReport(2, &keyReport, sizeof(keyReport));
+  sendReport();
   #if DEBUG_MODE
     printKeyReport();
   #endif
@@ -921,16 +936,24 @@ void keystroke(uint8_t keyCode, uint8_t modifiers)
     {
       keyReport.keys[i] = keyCode;
       keyReport.modifiers = modifiers;
-      HID().SendReport(2, &keyReport, sizeof(keyReport));
+      sendReport();
+      delay(PROGRAMMATIC_KEYS_RELEASE);
       keyReport.keys[i] = 0;
       keyReport.modifiers = originalModifiers;
-      HID().SendReport(2, &keyReport, sizeof(keyReport));
+      sendReport();
       break;
     }
   }
 #if DEBUG_MODE
   printKeyReport();
 #endif
+}
+
+void multimediaKeystroke(uint8_t keyCode)
+{
+    sendMultimediaKey(keyCode);
+    delay(PROGRAMMATIC_KEYS_RELEASE); // Pause for release
+    releaseMultimediaKey(keyCode);
 }
 
 void startRecording()
@@ -1054,8 +1077,8 @@ void playMacro()
                 {
                         // Send the key report
                         HID().SendReport(2, &macros[macro_slot].keyReports[macroPlayStatus[macro_slot].macroIndex], sizeof(KeyReport));
-                        delay(2);
-                        Keyboard.releaseAll();
+                        delay(PROGRAMMATIC_KEYS_RELEASE);
+                        releaseAll();
                         // Move to the next key in the macro
                         macroPlayStatus[macro_slot].macroIndex++;
                 }
