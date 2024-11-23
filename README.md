@@ -184,7 +184,7 @@ There are 5 macro slots available, each capable of storing up to 24 key reports.
 ### Resetting Macros
 
 1. **Reset Macros**:
-   - Press **Help + F5** to stop any playing macro and reset all macros. WARNING this cleans and reset the EEPROM.
+   - Press **Help + Del** to stop any playing macro and reset all macros. WARNING this cleans and reset the EEPROM.
 
 ### Example Usage
 
@@ -294,7 +294,6 @@ This method is ideal for users comfortable with the command line. **Arduino CLI*
    arduino-cli core update-index
    arduino-cli core install arduino:avr
    arduino-cli lib install "Keyboard"
-   arduino-cli lib install "CircularBuffer"
    ```
 
 3. **Connect Arduino Leonardo via USB** and identify the port:
@@ -332,7 +331,6 @@ The **Arduino IDE** provides a graphical interface for writing, compiling, and u
 2. **Install the Keyboard Library**:
    - In the Arduino IDE, go to Tools > Manage Libraries....
    - In the Library Manager, search for "Keyboard" and install the Keyboard library.
-   - In the Library Manager, search for "CircularBuffer" and install the CircularBuffer library.
 
 3. **Open Your Sketch**:
    - Launch the Arduino IDE.
