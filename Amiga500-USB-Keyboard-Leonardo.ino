@@ -38,15 +38,15 @@
 
 // Preprocessor flag to enable or disable debug mode
 // Debug mode provides verbose console output at every step.
-#define DEBUG_MODE 0
+#define DEBUG_MODE 1
 
 // Preprocessor flag to enable or disable joystick support
 // Joystick support is only required if you are going to attach DB9 connectors and use legacy Amiga joysticks with the controller.
 #define ENABLE_JOYSTICKS 0
 
-#define ENABLE_MULTIMEDIA_KEYS 1 // Enable multimedia keys (volume, play/pause, etc.)
+#define ENABLE_MULTIMEDIA_KEYS 0 // Enable multimedia keys (volume, play/pause, etc.)
 
-#define MAX_MACRO_LENGTH 50  // Maximum number of key events in a macro (9bit x MAX_MACRO_LENGTH) x MACRO_SLOTS 
+#define MAX_MACRO_LENGTH 5  // Maximum number of key events in a macro (9bit x MAX_MACRO_LENGTH) x MACRO_SLOTS 
                               // of memory reserved. If PERSISTENT_MACRO is 1, macros get saved to EEPROM witch is 1kb
                               // so this should never go over 1000bytes to leave some room for checksum and other metadata
 
@@ -61,14 +61,14 @@
 //      If live keys occupy the report, macro playback may be delayed to accommodate them.
 // 4. Key releases from macros are queued and processed after live keys and new key presses.
 #define MACRO_DELAY 15
-#define PERSISTENT_MACRO 1 // Save macros to EEPROM
+#define PERSISTENT_MACRO 0 // Save macros to EEPROM
 #define MACRO_SAVE_VERSION 2 // Macro save version, increment this if you change the macro structure
-#define MAX_CONCURENT_MACROS 2 // Maximum number of macros that can be played at the same time
+#define MAX_CONCURENT_MACROS 1 // Maximum number of macros that can be played at the same time
 
 #define DELAYED_QUEUE_DELAY 5 // Delayed key queue delay in milliseconds (primary for programmatic or macro key releases)
 
-#define QUEUE_SIZE 50 + (MAX_CONCURENT_MACROS * MAX_MACRO_LENGTH ) // Size of the key event queues, its (QUEUE_SIZE*9bit) x 2 of memory reserved in currect code
-#define RELEASE_QUEUE_SIZE 50 // Size of the delayed key event queue for programmatic and macro key releases
+#define QUEUE_SIZE 20 + (MAX_CONCURENT_MACROS * MAX_MACRO_LENGTH ) // Size of the key event queues, its (QUEUE_SIZE*9bit) x 2 of memory reserved in currect code
+#define RELEASE_QUEUE_SIZE 20 // Size of the delayed key event queue for programmatic and macro key releases
 #define QUEUE_SIZE_MMKEY 5 // Size of the multimedia key event queue
 #define CONSUME_KEY_TIMER 100 // Consume key timer in microseconds
 
@@ -573,7 +573,7 @@ void setup()
   memset(&prevkeyReport, 0xFF, sizeof(KeyReport));
   memset(&prevMultimediaKeyReport, 0xFF, sizeof(MultimediaKeyReport));
 
-  foreach(uint8_t i, MACRO_SLOTS) {
+  for(uint8_t i=0; i<MACRO_SLOTS; i++) {
     macroPlayStatus[i].playing = false;
     macroPlayStatus[i].queued = false;
     macroPlayStatus[i].loop = false;
@@ -618,7 +618,7 @@ void loop()
 
 void SendReports(){
     static uint32_t reportRunTime = 0; // Tracks the last time the function was executed
-    if (millis() - reportRunTime >=  1) {
+    if (micros() - reportRunTime >=  900) {
       if(memcmp(&keyReport, &prevkeyReport, sizeof(KeyReport)) != 0){
         HID().SendReport(1, &keyReport, sizeof(KeyReport));
         memcpy(&prevkeyReport, &keyReport, sizeof(KeyReport));
@@ -628,6 +628,7 @@ void SendReports(){
         memcpy(&prevMultimediaKeyReport, &multimediaKeyReport, sizeof(MultimediaKeyReport));
       }
     }
+    reportRunTime = micros();
 }
 
 bool isHIDreportfull(){
@@ -708,7 +709,7 @@ void consumeDelayedMultimediaKeys(){
     if (millis() - consumeDelayedMultimedialastRunTime >=  DELAYED_QUEUE_DELAY) {
         consumeDelayedMultimedialastRunTime = millis(); // Update the last execution time
 
-        while (!mmultimediaReleaseQueue.isEmpty()) {
+        while (!multimediaReleaseQueue.isEmpty()) {
             uint8_t mmkey = multimediaReleaseQueue.shift();
             remove_mmkey(&multimediaKeyReport.report, mmkey);
         }
@@ -779,7 +780,7 @@ void handleKeyboard()
       PORTB &= ~BITMASK_A500SP; // Set SP pin LOW
       handshakeTimer = micros(); // Use micros() for precise timing
     }
-    else if (micros() - handshakeTimer > 85) // 85 microseconds
+    else if (micros() - handshakeTimer > 500) // 85 microseconds
     {
       handshakeTimer = 0;
       DDRB &= ~BITMASK_A500SP; // Set SP pin as INPUT
@@ -1401,10 +1402,10 @@ void record_last_key(KeyEvent& keyEvent){
   {
     #if DEBUG_MODE
       Serial.print("Recording key at index: ");
-      Serial.println(macroIndex);
+      Serial.println(recordingMacroIndex);
     #endif
     KeyEvent& macroKeyEvent=macros[recordingMacroSlot].keyEvents[recordingMacroIndex];
-    macroKeyEvent.keyCode = keycode;
+    macroKeyEvent.keyCode = keyEvent.keyCode;
     macroKeyEvent.isPressed = true;
     macroKeyEvent.isMacro = true;
     macroKeyEvent.macroSlot = recordingMacroSlot;
