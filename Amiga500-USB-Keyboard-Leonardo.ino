@@ -1024,6 +1024,7 @@ bool isMacroPlaying()
        return true;
      }
    }
+   return false;
 }
 
 // Stop all playing macros
