@@ -1,13 +1,17 @@
 /*
+ * SPDX-License-Identifier: MIT
  * Amiga 500 Keyboard to USB HID Converter Arduino Leonardo
- * This rewrite/update and version (c) 2024 by Luka "Void" MIT License
+ * Copyright (c) 2024 by Luka "Void" MIT License
  * GitHub: https://github.com/arvvoid/
  * Contact: luka@lukavoid.xyz
+ * Repository: https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo
  * Original code and inspiration by olaf, Steve_Reaver (taken from https://forum.arduino.cc/index.php?topic=139358.15)
  *
  * This sketch converts an original Amiga 500 keyboard to a standard USB HID
  * keyboard using an Arduino Leonardo. It includes support for joystick inputs
  * and special function keys.
+ * 
+ * Readme: https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/blob/main/README.md
  */
 
 #include <Keyboard.h>
