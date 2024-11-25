@@ -37,7 +37,7 @@
                             // but macros will not be persistent anymore
                             // because the macro save to eeprom function will gracefully cancel
 #define MACRO_DELAY 2    // ms between macro processing non blocking
-#define CONCURENT_MACROS 1 // How many macros can be played at the same time
+#define CONCURENT_MACROS 2 // How many macros can be played at the same time
 #define MACRO_SAVE_VERSION 4 // Version of the saved macros
 
 #define PROGRAMMATIC_KEYS_RELEASE 2 // delay between press and release on programmatic keys (sent keystrokes)
