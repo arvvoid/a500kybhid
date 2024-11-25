@@ -147,8 +147,8 @@ This section explains how to use the macro recording and playback functionality 
 
 ### Macro Slots
 
-There are 5 macro slots available, each capable of storing up to 24 key reports. The macros are stored in EEPROM, so they persist across power cycles.
-24 to keep withing the EEPROM 1kb size of the Leonardo. If you disable persistent macros flag you can go up to 45 per slot on the Leonardo but macros will not persist power cycles.
+There are 5 macro slots available, each capable of storing up to 32 key events. The macros are stored in EEPROM, so they persist across power cycles.
+32 to keep withing the EEPROM 1kb size of the Leonardo. If you disable persistent macros flag you can larger macros per slot but macros will not persist power cycles.
 
 ### **Recording a Macro**
 
@@ -167,7 +167,7 @@ There are 5 macro slots available, each capable of storing up to 24 key reports.
 
 1. **Play a Macro**:
    - Press **Help + F6** to **Help + F10** to play the macro stored in the corresponding slot (slots 1 to 5).
-   - The macro will replay the recorded key presses at fixed intervals.
+   - The macro will replay the recorded key presses/releases at original timing.
 
 2. **Activate Looping** (BETA):
    - Press **Help + F5** to toggle looping mode for macros.
@@ -176,7 +176,6 @@ There are 5 macro slots available, each capable of storing up to 24 key reports.
      - You can deactivate looping mode to allow other macros to play just once.
    - To stop a looping macro, press the corresponding slot key again (e.g., **Help + F6**) while the macro is playing.
    - **Note:** Running too many loops with many key presses may interfere with normal keyboard functionality and introduce delays to standard key presses. Use with caution.
-   - **Note:** This feature is work in progress
 
 3. **Stop All Macros**:
    - Press **Help + Backspace** to stop all currently playing macros.
@@ -200,7 +199,7 @@ There are 5 macro slots available, each capable of storing up to 24 key reports.
 ### Notes
 
 - Macros are stored in EEPROM, so they will persist across power cycles.
-- Each macro slot can store up to 24 key reports.
+- Each macro slot can store up to 32 key events.
 - The recording will stop automatically if the macro slot is full.
 
 # Build and Upload Guide
@@ -396,7 +395,6 @@ The **Arduino IDE** provides a graphical interface for writing, compiling, and u
 
 ## TODO
 
-- [ ] Implement a processing queue for managing keypresses efficiently.
 - [ ] Add an optional Piezo Buzzer to the Leonardo for audio feedback, providing better user experience during macro recording.
 - [ ] Multiple layouts.
 - [ ] Remap any key on the fly
