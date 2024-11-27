@@ -115,6 +115,7 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 | **Help + F3**                 | Record macro           |
 | **Help + F4**                 | Save macro             |
 | **Help + F5**                 | Toggle looping macro   |
+| **Help + R**                  | Toggle robot macro mode|
 | **Help + Backspace**          | Stop all playing macros       |
 | **Help + Del**                | Reset all macros (delete all) |
 | **Help + F6**                 | Play macro slot 1      |
@@ -167,9 +168,10 @@ There are 5 macro slots available, each capable of storing up to 32 key events. 
 
 1. **Play a Macro**:
    - Press **Help + F6** to **Help + F10** to play the macro stored in the corresponding slot (slots 1 to 5).
-   - The macro will replay the recorded key presses/releases at original timing.
+   - The macro will replay the recorded key presses/releases with the original timing by default.
+   - If Robot Macro Mode is on (toggle with **HELP + R**), the macro is played with 2ms intervals between key events instead of the original timings. In this mode, a macro with 32 key events will play one cycle in approximately 64 ms.
 
-2. **Activate Looping** (BETA):
+2. **Activate Looping**:
    - Press **Help + F5** to toggle looping mode for macros.
    - When looping is active:
      - A macro will repeat continuously once started.

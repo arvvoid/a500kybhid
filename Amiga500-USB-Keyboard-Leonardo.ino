@@ -36,8 +36,8 @@
                              // macros and the keyboard will still work if enough sram
                              // but macros will not be persistent anymore
                              // because the macro save to eeprom function will gracefully cancel if 1kb is exceeded
-#define MACRO_DELAY 20       // ms between macro processing loops non blocking (at every loop all eligible key events in the delay window are processed)
-#define CONCURENT_MACROS 2   // How many macros can be played at the same time
+#define MACRO_DELAY 2       // ms between macro processing loops non blocking (at every loop all eligible key events in the delay window are processed)
+#define CONCURENT_MACROS 3  // How many macros can be played at the same time
 #define MACRO_SAVE_VERSION 4 // Version of the saved macros
 
 #define PROGRAMMATIC_KEYS_RELEASE 2 // delay in ms between press and release on programmatic keys (sent keystrokes)
@@ -358,6 +358,8 @@ struct MacroPlayStatus
   uint8_t macroIndex;
   uint32_t playStartTime;
 };
+
+bool robotMacroMode=false;
 
 static const uint8_t macroKeyboardDescriptor[] PROGMEM = {
 
@@ -975,6 +977,9 @@ void handleFunctionModeKey()
   case AMIGA_KEY_DELETE:
     resetMacros();
     break; // Help + Del: Stop any playing macro and reset all macros including eeprom
+  case AMIGA_KEY_R:
+    robotMacroMode = !robotMacroMode;
+    break; // Help + R: Toggle robot macro mode
   case AMIGA_KEY_F6:
   case AMIGA_KEY_F7:
   case AMIGA_KEY_F8:
@@ -1326,9 +1331,13 @@ void playMacro()
       // Check if the macro is currently playing
       if (macroPlayStatus[macro_slot].playing)
       {
+        uint32_t nextDelay = macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].delay;
+        if(robotMacroMode){
+          nextDelay = macroPlayStatus[macro_slot].macroIndex * 2; //slot times 2ms delay
+        }  
         // Process Key Events if delay has passed
         while (macroPlayStatus[macro_slot].macroIndex < macros[macro_slot].length &&
-              currentTime - macroPlayStatus[macro_slot].playStartTime >= macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].delay)
+              currentTime - macroPlayStatus[macro_slot].playStartTime >= nextDelay)
         {
           if (macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].isPressed)
           {
@@ -1340,6 +1349,14 @@ void playMacro()
           }
           // Move to the next report in the macro
           macroPlayStatus[macro_slot].macroIndex++;
+          if(macroPlayStatus[macro_slot].macroIndex < macros[macro_slot].length){
+            if(robotMacroMode){
+              nextDelay = macroPlayStatus[macro_slot].macroIndex * 2;
+            }
+            else{
+              nextDelay = macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].delay;
+            }
+          }
         }
 
         // Check if the macro has completed
