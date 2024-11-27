@@ -909,7 +909,7 @@ void processKeyCode()
             interrupts(); // Enable interrupts to exit critical section
 #if DEBUG_MODE
             Serial.print("Recording slot selected: ");
-            Serial.println(currentMacroSlot, HEX);
+            Serial.println(recordingMacroSlot, HEX);
 #endif
           }
           return;
@@ -1194,6 +1194,18 @@ void stopRecording()
       macros[recordingMacroSlot].keyEvents[i].delay -= firstDelay;
     }
     functionMode = false;
+    #if DEBUG_MODE
+    Serial.println("Recording of macro stopped:");
+    for (int i = 0; i < macros[recordingMacroSlot].length; i++)
+    {
+      Serial.print("-EVENT: ");
+      Serial.print(macros[recordingMacroSlot].keyEvents[i].isPressed);
+      Serial.print(" ");
+      Serial.print(macros[recordingMacroSlot].keyEvents[i].keyCode, HEX);
+      Serial.print(" ");
+      Serial.println(macros[recordingMacroSlot].keyEvents[i].delay);
+    }
+    #endif
     // Save macros to EEPROM
     saveMacrosToEEPROM();
     interrupts(); // Enable interrupts to exit critical section
@@ -1362,7 +1374,7 @@ void record_key(uint8_t keycode, bool isPressed)
     noInterrupts(); // Disable interrupts to enter critical section
 #if DEBUG_MODE
     Serial.print("Recording key report at index: ");
-    Serial.println(macroIndex);
+    Serial.println(recordingMacroIndex);
 #endif
     macros[recordingMacroSlot].keyEvents[recordingMacroIndex].isPressed = isPressed;
     macros[recordingMacroSlot].keyEvents[recordingMacroIndex].keyCode = keycode;
