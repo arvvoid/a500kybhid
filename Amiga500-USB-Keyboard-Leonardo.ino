@@ -42,6 +42,7 @@
 #define MACRO_ROBOT_MODE_DEFAULT false // false = normal mode (real recorded delays between key events), true = robot mode (minimal regular delays between key events)
 #define MACRO_SAVE_VERSION 4 // Version of the saved macros
 
+#define LIVE_KEY_EVENT_BUFFER_SIZE 50 // Size of the buffer for live key events
 #define PROGRAMMATIC_KEYS_RELEASE 2 // delay in ms between press and release on programmatic keys (sent keystrokes)
 
 #if PERSISTENT_MACRO
@@ -59,8 +60,8 @@
 #define BITMASK_JOY2 0b11110011 // IO A0..A5
 #endif
 
-#define MIN_HANDSHAKE_WAIT_TIME 700  //microsecconds: experimentally determined going lower that 600 can cause issues and noise,
-                                     //resulting in corrupted keypress. Added 100 as safety margin. This work stable.
+#define MIN_HANDSHAKE_WAIT_TIME 700 //microsecconds: experimentally determined going lower that 600 can cause issues and noise,
+                                    //resulting in corrupted keypress. Added 100 as safety margin. This work stable.
 
 // Preprocessor flag to enable or disable debug mode
 // Debug mode provides some console output.
@@ -350,6 +351,14 @@ enum KeyboardState
   WAIT_RES
 };
 
+struct lKeyEvent //live key event
+{
+  uint8_t keyCode;
+  bool isPressed;
+};
+
+CircularBuffer<lKeyEvent, LIVE_KEY_EVENT_BUFFER_SIZE> keysEvents;
+
 // Macro structures
 struct MacroKeyEvent
 {
@@ -522,12 +531,8 @@ const uint8_t multimediaDescriptor[] PROGMEM = {
 HIDSubDescriptor multimediaHID(multimediaDescriptor, sizeof(multimediaDescriptor));
 #endif
 
-// Keyboard state machine variables
-KeyboardState keyboardState = SYNCH_HI;
-uint8_t bitIndex = 0;
-uint8_t currentKeyCode = 0;
+// Keyboard state variables
 bool functionMode = false; // Indicates if 'Help' key is active
-bool isKeyDown = false;
 
 #if PERSISTENT_MACRO
 // Function to calculate macros checksum
@@ -661,13 +666,7 @@ bool loadMacrosFromEEPROM()
   return true;
 }
 #endif
-struct lKeyEvent //live key event
-{
-  uint8_t keyCode;
-  bool isPressed;
-};
 
-CircularBuffer<lKeyEvent, 50> keysEvents;
 
 void setup()
 {
@@ -714,12 +713,7 @@ void loop()
   handleJoystick2();
 #endif
   handleKeyboard();
-  // Process key events
-  while (!keysEvents.isEmpty())
-  {
-    lKeyEvent event=keysEvents.shift(); // Remove the oldest element from the buffer
-    processKeyCode(event.keyCode, event.isPressed);
-  }
+  processKeyEvents();
   playMacro();
 }
 
@@ -745,6 +739,15 @@ void handleJoystick2()
 }
 #endif
 
+void processKeyEvents()
+{
+  while (!keysEvents.isEmpty())
+  {
+    lKeyEvent keyEvent = keysEvents.shift(); // Remove the oldest element from the buffer
+    processKeyCode(keyEvent.keyCode, keyEvent.isPressed);
+  }
+}
+
 // Function to add key event to the buffer
 void addKeyEventToBuffer(uint8_t keyCode, bool isPressed)
 {
@@ -757,10 +760,12 @@ void addKeyEventToBuffer(uint8_t keyCode, bool isPressed)
 // Function to handle keyboard events
 void handleKeyboard()
 {
+  static KeyboardState keyboardState = SYNCH_HI;
   static uint32_t handshakeTimer = 0;
-  uint8_t pinB = PINB;
+  static uint8_t currentKeyCode = 0;
+  static uint8_t bitIndex = 0;
 
-  if (((pinB & BITMASK_A500RES) == 0) && keyboardState != WAIT_RES)
+  if (((PINB & BITMASK_A500RES) == 0) && keyboardState != WAIT_RES)
   {
     // Reset detected
     interrupts();
@@ -771,7 +776,7 @@ void handleKeyboard()
   else if (keyboardState == WAIT_RES)
   {
     // Waiting for reset end
-    if ((pinB & BITMASK_A500RES) != 0)
+    if ((PINB & BITMASK_A500RES) != 0)
     {
       keyboardState = SYNCH_HI;
     }
@@ -779,7 +784,7 @@ void handleKeyboard()
   else if (keyboardState == SYNCH_HI)
   {
     // Sync Pulse High
-    if ((pinB & BITMASK_A500CLK) == 0)
+    if ((PINB & BITMASK_A500CLK) == 0)
     {
       keyboardState = SYNCH_LO;
     }
@@ -787,7 +792,7 @@ void handleKeyboard()
   else if (keyboardState == SYNCH_LO)
   {
     // Sync Pulse Low
-    if ((pinB & BITMASK_A500CLK) != 0)
+    if ((PINB & BITMASK_A500CLK) != 0)
     {
       keyboardState = HANDSHAKE;
     }
@@ -813,17 +818,17 @@ void handleKeyboard()
   else if (keyboardState == READ)
   {
     // Read key message (8 bits)
-    if ((pinB & BITMASK_A500CLK) != 0)
+    if ((PINB & BITMASK_A500CLK) != 0)
     {
       if (bitIndex--)
       {
-        currentKeyCode |= ((pinB & BITMASK_A500SP) == 0) << bitIndex; // Accumulate bits
+        currentKeyCode |= ((PINB & BITMASK_A500SP) == 0) << bitIndex; // Accumulate bits
         keyboardState = WAIT_LO;
       }
       else
       {
         // Read last bit (key down/up)
-        isKeyDown = ((pinB & BITMASK_A500SP) != 0); // true if key down
+        bool isKeyDown = ((PINB & BITMASK_A500SP) != 0); // true if key down
         interrupts();
         keyboardState = HANDSHAKE;
         addKeyEventToBuffer(currentKeyCode, isKeyDown);
@@ -833,7 +838,7 @@ void handleKeyboard()
   else if (keyboardState == WAIT_LO)
   {
     // Waiting for the next bit
-    if ((pinB & BITMASK_A500CLK) == 0)
+    if ((PINB & BITMASK_A500CLK) == 0)
     {
       noInterrupts();
       keyboardState = READ;
@@ -1049,7 +1054,7 @@ void handleFunctionModeKey(uint8_t keyCode)
   case AMIGA_KEY_F8:
   case AMIGA_KEY_F9:
   case AMIGA_KEY_F10:
-    playMacroSlot(macroSlotFromKeyCode(currentKeyCode));
+    playMacroSlot(macroSlotFromKeyCode(keyCode));
     break; // Help + F6 to F10: Play macro in corresponding slot
 #if ENABLE_MULTIMEDIA_KEYS
   case AMIGA_KEY_ARROW_UP:                // HELP + Arrow Up: Volume Up
