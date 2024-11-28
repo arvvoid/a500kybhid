@@ -16,6 +16,7 @@
 
 #include <Keyboard.h>
 #include <HID.h>
+#include <CircularBuffer.hpp>
 
 // Preprocessor flag to enable or disable multimedia keys (Consumer device)
 // Multimedia keys are mapped to the Amiga 500 keyboard and can be used to control media playback.
@@ -660,6 +661,13 @@ bool loadMacrosFromEEPROM()
   return true;
 }
 #endif
+struct lKeyEvent //live key event
+{
+  uint8_t keyCode;
+  bool isPressed;
+};
+
+CircularBuffer<lKeyEvent, 50> keysEvents;
 
 void setup()
 {
@@ -706,6 +714,12 @@ void loop()
   handleJoystick2();
 #endif
   handleKeyboard();
+  // Process key events
+  while (!keysEvents.isEmpty())
+  {
+    lKeyEvent event=keysEvents.shift(); // Remove the oldest element from the buffer
+    processKeyCode(event.keyCode, event.isPressed);
+  }
   playMacro();
 }
 
@@ -731,6 +745,16 @@ void handleJoystick2()
 }
 #endif
 
+// Function to add key event to the buffer
+void addKeyEventToBuffer(uint8_t keyCode, bool isPressed)
+{
+  lKeyEvent event;
+  event.keyCode = keyCode;
+  event.isPressed = isPressed;
+  keysEvents.push(event); // Add the event to the buffer
+}
+
+// Function to handle keyboard events
 void handleKeyboard()
 {
   static uint32_t handshakeTimer = 0;
@@ -802,7 +826,7 @@ void handleKeyboard()
         isKeyDown = ((pinB & BITMASK_A500SP) != 0); // true if key down
         interrupts();
         keyboardState = HANDSHAKE;
-        processKeyCode();
+        addKeyEventToBuffer(currentKeyCode, isKeyDown);
       }
     }
   }
@@ -893,21 +917,21 @@ bool isSpecialKey(uint8_t keyCode) {
 
 uint8_t ignoreNextRelease = 0;
 
-void processKeyCode()
+void processKeyCode(uint8_t keyCode, bool isPressed)
 {
-  if (!(currentKeyCode < AMIGA_KEY_COUNT))
+  if (!(keyCode < AMIGA_KEY_COUNT))
   {
     return;
   }
 
-  if (recording && ignoreNextRelease > 0 && ignoreNextRelease == currentKeyCode && !isKeyDown)
+  if (recording && ignoreNextRelease > 0 && ignoreNextRelease == keyCode && !isPressed)
   {
     ignoreNextRelease = 0;
     return;
   }
 
   #if DEBUG_MODE
-  if (isKeyDown)
+  if (isPressed)
   {
     Serial.println(" ");
     Serial.print("Key Press: ");
@@ -916,46 +940,46 @@ void processKeyCode()
   {
     Serial.print("Key Release: ");
   }
-  Serial.println(currentKeyCode, HEX);
+  Serial.println(keyCode, HEX);
   #endif
 
-  if (currentKeyCode == AMIGA_KEY_HELP)
+  if (keyCode == AMIGA_KEY_HELP)
   {
     // 'Help' key toggles function mode
-    functionMode = isKeyDown;
+    functionMode = isPressed;
     return;
   }
 
-  if (isKeyDown && currentKeyCode == AMIGA_KEY_CAPS_LOCK)
+  if (isPressed && keyCode == AMIGA_KEY_CAPS_LOCK)
   {
     // CapsLock key
     keystroke(0x39, 0x00);
     return;
   }
 
-  if (isKeyDown && currentKeyCode == AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN)
+  if (isPressed && keyCode == AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN)
   {
     keystroke(0x53, 0); // NumLock
     return;
   }
-  if (isKeyDown && currentKeyCode == AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN)
+  if (isPressed && keyCode == AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN)
   {
     keystroke(0x47, 0); // ScrollLock
     return;
   }
 
   // Special function with 'Help' key
-  if (isKeyDown && functionMode)
+  if (isPressed && functionMode)
   {
-    handleFunctionModeKey();
+    handleFunctionModeKey(keyCode);
     return;
   }
 
-  if (isKeyDown && recording && !recordingSlot)
+  if (isPressed && recording && !recordingSlot)
   {
-    if (currentKeyCode >= AMIGA_KEY_F6 && currentKeyCode <= AMIGA_KEY_F10)
+    if (keyCode >= AMIGA_KEY_F6 && keyCode <= AMIGA_KEY_F10)
     {
-      recordingMacroSlot = macroSlotFromKeyCode(currentKeyCode);
+      recordingMacroSlot = macroSlotFromKeyCode(keyCode);
       memset(&macros[recordingMacroSlot], 0, sizeof(macros[recordingMacroSlot])); // Clear macro slot
       recordingMacroIndex = 0;
       recordingSlot = true;
@@ -964,31 +988,31 @@ void processKeyCode()
       Serial.println(recordingMacroSlot, HEX);
       #endif
     }
-    ignoreNextRelease = currentKeyCode;
+    ignoreNextRelease = keyCode;
     return;
   }
 
-  if (isKeyDown)
+  if (isPressed)
   {
-    if (!isSpecialKey(currentKeyCode))
-      keyPress(currentKeyCode);
+    if (!isSpecialKey(keyCode))
+      keyPress(keyCode);
   }
   else
   {
     // Key release message received
-    if (!isSpecialKey(currentKeyCode))
-      keyRelease(currentKeyCode);
+    if (!isSpecialKey(keyCode))
+      keyRelease(keyCode);
   }
 }
 
-void handleFunctionModeKey()
+void handleFunctionModeKey(uint8_t keyCode)
 {
   #if DEBUG_MODE
     Serial.print("Handling function mode key: ");
-    Serial.println(currentKeyCode, HEX);
+    Serial.println(keyCode, HEX);
   #endif
-  ignoreNextRelease = currentKeyCode;
-  switch (currentKeyCode)
+  ignoreNextRelease = keyCode;
+  switch (keyCode)
   {
   case AMIGA_KEY_F1:
     keystroke(0x44, 0);
