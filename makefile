@@ -4,7 +4,7 @@
 BOARD_FQBN = arduino:avr:leonardo      # Fully Qualified Board Name for Arduino Leonardo
 SKETCH = Amiga500-USB-Keyboard-Leonardo.ino  # Path to sketch file
 BUILD_DIR = build                      # Directory for build artifacts
-LIBRARIES = Keyboard			       # List of required libraries
+LIBRARIES = Keyboard CircularBuffer    # List of required libraries
 CORE = arduino:avr                     # Required core
 
 # Commands
