@@ -924,7 +924,7 @@ void processKeyCode(uint8_t keyCode, bool isPressed)
     return;
   }
 
-  if (recording && ignoreNextRelease > 0 && ignoreNextRelease == keyCode && !isPressed)
+  if (ignoreNextRelease > 0 && ignoreNextRelease == keyCode && !isPressed)
   {
     ignoreNextRelease = 0;
     return;
