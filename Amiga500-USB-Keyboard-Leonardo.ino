@@ -36,8 +36,9 @@
                              // macros and the keyboard will still work if enough sram
                              // but macros will not be persistent anymore
                              // because the macro save to eeprom function will gracefully cancel if 1kb is exceeded
-#define MACRO_DELAY 2       // ms between macro processing loops non blocking (at every loop all eligible key events in the delay window are processed)
-#define CONCURENT_MACROS 3  // How many macros can be played at the same time
+#define MACRO_DELAY 20       // ms between macro processing loops non blocking (at every loop all eligible key events in the delay window are processed)
+#define CONCURENT_MACROS 2   // How many macros can be played at the same time
+#define MACRO_ROBOT_MODE_DEFAULT false // false = normal mode (real recorded delays between key events), true = robot mode (minimal regular delays between key events)
 #define MACRO_SAVE_VERSION 4 // Version of the saved macros
 
 #define PROGRAMMATIC_KEYS_RELEASE 2 // delay in ms between press and release on programmatic keys (sent keystrokes)
@@ -56,6 +57,9 @@
 #define BITMASK_JOY1 0b10011111 // IO 0..4,6
 #define BITMASK_JOY2 0b11110011 // IO A0..A5
 #endif
+
+#define MIN_HANDSHAKE_WAIT_TIME 700  //microsecconds: experimentally determined going lower that 600 can cause issues and noise,
+                                     //resulting in corrupted keypress. Added 100 as safety margin. This work stable.
 
 // Preprocessor flag to enable or disable debug mode
 // Debug mode provides some console output.
@@ -315,6 +319,14 @@ const uint8_t keyTable[AMIGA_KEY_COUNT] = {
     0x10  // 0x67: AMIGA_KEY_AMIGA_RIGHT                 -> HID KEY_MODIFIER_RIGHT_CONTROL
 };
 
+const uint8_t specialKeys[] = {
+  AMIGA_KEY_HELP,
+  AMIGA_KEY_CAPS_LOCK,
+  AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN,
+  AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN,
+  // Add other special keys here
+};
+
 enum MultimediaKey
 {
   MMKEY_NEXT_TRACK = 1 << 0, // 0x01
@@ -359,7 +371,7 @@ struct MacroPlayStatus
   uint32_t playStartTime;
 };
 
-bool robotMacroMode=false;
+bool robotMacroMode=MACRO_ROBOT_MODE_DEFAULT;
 
 static const uint8_t macroKeyboardDescriptor[] PROGMEM = {
 
@@ -409,14 +421,14 @@ KeyReport keyReport;
 KeyReport prevkeyReport;
 KeyReport macroKeyReport;
 KeyReport macroPrevkeyReport;
-uint32_t handshakeTimer = 0;
-Macro macros[MACRO_SLOTS]; // 5 macro slots
-MacroPlayStatus macroPlayStatus[MACRO_SLOTS];
+
 bool recording = false;
 bool recordingSlot = false;
 bool macro_looping = false;
 uint8_t recordingMacroSlot = 0;
 uint8_t recordingMacroIndex = 0;
+Macro macros[MACRO_SLOTS]; // 5 macro slots
+MacroPlayStatus macroPlayStatus[MACRO_SLOTS];
 
 #if ENABLE_JOYSTICKS
 // Joystick states
@@ -659,9 +671,7 @@ void setup()
   } // Wait for Serial to be ready
   Serial.println("Debug mode enabled");
 #endif
-  noInterrupts(); // Disable interrupts to enter critical section
   loadMacrosFromEEPROM();
-  interrupts(); // Enable interrupts to exit critical section
 
   memset(&keyReport, 0x00, sizeof(KeyReport));
   memset(&prevkeyReport, 0xFF, sizeof(KeyReport));
@@ -723,6 +733,7 @@ void handleJoystick2()
 
 void handleKeyboard()
 {
+  static uint32_t handshakeTimer = 0;
   uint8_t pinB = PINB;
 
   if (((pinB & BITMASK_A500RES) == 0) && keyboardState != WAIT_RES)
@@ -764,9 +775,9 @@ void handleKeyboard()
     {
       DDRB |= BITMASK_A500SP;   // Set SP pin as OUTPUT
       PORTB &= ~BITMASK_A500SP; // Set SP pin LOW
-      handshakeTimer = millis();
+      handshakeTimer = micros();
     }
-    else if (millis() - handshakeTimer > 10)
+    else if (micros() - handshakeTimer > MIN_HANDSHAKE_WAIT_TIME)
     {
       handshakeTimer = 0;
       DDRB &= ~BITMASK_A500SP; // Set SP pin as INPUT
@@ -821,6 +832,10 @@ void sendReport()
   {
     HID().SendReport(HID_ID_KEYBOARD, &keyReport, sizeof(KeyReport));
     memcpy(&prevkeyReport, &keyReport, sizeof(KeyReport));
+    #if DEBUG_MODE
+      Serial.println("Sent report ->>> ");
+      printKeyReport();
+    #endif
   }
 }
 
@@ -867,87 +882,112 @@ void releaseMultimediaKey(uint8_t keyBit)
   HID().SendReport(multimediaKeyReport.reportId, &multimediaKeyReport.keys, sizeof(multimediaKeyReport.keys));
 }
 
+bool isSpecialKey(uint8_t keyCode) {
+  for (uint8_t i = 0; i < sizeof(specialKeys) / sizeof(specialKeys[0]); i++) {
+    if (specialKeys[i] == keyCode) {
+      return true;
+    }
+  }
+  return false;
+}
+
+uint8_t ignoreNextRelease = 0;
+
 void processKeyCode()
 {
-#if DEBUG_MODE
-  Serial.print("Processing key code: ");
+  if (!(currentKeyCode < AMIGA_KEY_COUNT))
+  {
+    return;
+  }
+
+  if (recording && ignoreNextRelease > 0 && ignoreNextRelease == currentKeyCode && !isKeyDown)
+  {
+    ignoreNextRelease = 0;
+    return;
+  }
+
+  #if DEBUG_MODE
+  if (isKeyDown)
+  {
+    Serial.println(" ");
+    Serial.print("Key Press: ");
+  }
+  else
+  {
+    Serial.print("Key Release: ");
+  }
   Serial.println(currentKeyCode, HEX);
-#endif
+  #endif
+
   if (currentKeyCode == AMIGA_KEY_HELP)
   {
     // 'Help' key toggles function mode
     functionMode = isKeyDown;
     return;
   }
-  else if (currentKeyCode == AMIGA_KEY_CAPS_LOCK)
+
+  if (isKeyDown && currentKeyCode == AMIGA_KEY_CAPS_LOCK)
   {
     // CapsLock key
     keystroke(0x39, 0x00);
     return;
   }
+
+  if (isKeyDown && currentKeyCode == AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN)
+  {
+    keystroke(0x53, 0); // NumLock
+    return;
+  }
+  if (isKeyDown && currentKeyCode == AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN)
+  {
+    keystroke(0x47, 0); // ScrollLock
+    return;
+  }
+
+  // Special function with 'Help' key
+  if (isKeyDown && functionMode)
+  {
+    handleFunctionModeKey();
+    return;
+  }
+
+  if (isKeyDown && recording && !recordingSlot)
+  {
+    if (currentKeyCode >= AMIGA_KEY_F6 && currentKeyCode <= AMIGA_KEY_F10)
+    {
+      recordingMacroSlot = macroSlotFromKeyCode(currentKeyCode);
+      memset(&macros[recordingMacroSlot], 0, sizeof(macros[recordingMacroSlot])); // Clear macro slot
+      recordingMacroIndex = 0;
+      recordingSlot = true;
+      #if DEBUG_MODE
+      Serial.print("Recording slot selected: ");
+      Serial.println(recordingMacroSlot, HEX);
+      #endif
+    }
+    ignoreNextRelease = currentKeyCode;
+    return;
+  }
+
+  if (isKeyDown)
+  {
+    if (!isSpecialKey(currentKeyCode))
+      keyPress(currentKeyCode);
+  }
   else
   {
-    if (isKeyDown)
-    {
-      // Key down message received
-      if (functionMode)
-      {
-        // Special function with 'Help' key
-        handleFunctionModeKey();
-        return;
-      }
-      else
-      {
-
-        if (recording && !recordingSlot)
-        {
-          if (currentKeyCode >= AMIGA_KEY_F6 && currentKeyCode <= AMIGA_KEY_F10)
-          {
-            noInterrupts(); // Disable interrupts to enter critical section
-            recordingMacroSlot = macroSlotFromKeyCode(currentKeyCode);
-            memset(&macros[recordingMacroSlot], 0, sizeof(macros[recordingMacroSlot])); // Clear macro slot
-            recordingMacroIndex = 0;
-            recordingSlot = true;
-            interrupts(); // Enable interrupts to exit critical section
-#if DEBUG_MODE
-            Serial.print("Recording slot selected: ");
-            Serial.println(recordingMacroSlot, HEX);
-#endif
-          }
-          return;
-        }
-
-        if (currentKeyCode == AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN)
-        {
-          keystroke(0x53, 0); // NumLock
-        }
-        else if (currentKeyCode == AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN)
-        {
-          keystroke(0x47, 0); // ScrollLock
-        }
-        else if (currentKeyCode < AMIGA_KEY_COUNT)
-        {
-          keyPress(currentKeyCode);
-        }
-      }
-    }
-    else
-    {
-      // Key release message received
-      if (currentKeyCode < AMIGA_KEY_COUNT)
-      {
-        keyRelease(currentKeyCode);
-      }
-    }
+    // Key release message received
+    if (!isSpecialKey(currentKeyCode))
+      keyRelease(currentKeyCode);
   }
 }
 
 void handleFunctionModeKey()
 {
-#if DEBUG_MODE
-  Serial.print("Handling function mode key: ");
-  Serial.println(currentKeyCode, HEX);
-#endif
+  #if DEBUG_MODE
+    Serial.print("Handling function mode key: ");
+    Serial.println(currentKeyCode, HEX);
+  #endif
+  ignoreNextRelease = currentKeyCode;
   switch (currentKeyCode)
   {
   case AMIGA_KEY_F1:
@@ -1035,10 +1075,6 @@ bool isAmigaModifierKey(uint8_t keyCode)
 void keyPress(uint8_t keyCode)
 {
   record_key(keyCode, true); // if macro recording on, record key
-#if DEBUG_MODE
-  Serial.print("Key press: ");
-  Serial.println(keyCode, HEX);
-#endif
   uint8_t hidCode = keyTable[keyCode];
   if (isAmigaModifierKey(keyCode))
   {
@@ -1056,18 +1092,11 @@ void keyPress(uint8_t keyCode)
     }
   }
   sendReport();
-#if DEBUG_MODE
-  printKeyReport();
-#endif
 }
 
 void keyRelease(uint8_t keyCode)
 {
   record_key(keyCode, false); // if macro recording on, record key
-#if DEBUG_MODE
-  Serial.print("Key release: ");
-  Serial.println(keyCode, HEX);
-#endif
   uint8_t hidCode = keyTable[keyCode];
   if (isAmigaModifierKey(keyCode))
   {
@@ -1084,19 +1113,10 @@ void keyRelease(uint8_t keyCode)
     }
   }
   sendReport();
-#if DEBUG_MODE
-  printKeyReport();
-#endif
 }
 
 void keystroke(uint8_t keyCode, uint8_t modifiers)
 {
-#if DEBUG_MODE
-  Serial.print("Keystroke: ");
-  Serial.print(keyCode, HEX);
-  Serial.print(" with modifiers: ");
-  Serial.println(modifiers, HEX);
-#endif
   uint8_t originalModifiers = keyReport.modifiers;
   for (uint8_t i = 0; i < 6; i++)
   {
@@ -1172,13 +1192,11 @@ void startRecording()
 #if DEBUG_MODE
     Serial.println("Start recording macro");
 #endif
-    noInterrupts(); // Disable interrupts to enter critical section
     stopAllMacros();
     recordingMacroIndex = 0;
     recordingMacroSlot = 0;
     recordingSlot = false;
     recording = true;
-    interrupts(); // Enable interrupts to exit critical section
   }
 }
 
@@ -1189,7 +1207,6 @@ void stopRecording()
 #if DEBUG_MODE
     Serial.println("Stop recording macro");
 #endif
-    noInterrupts(); // Disable interrupts to enter critical section
     recording = false;
     recordingSlot = false;
     // normalize delays in the macro
@@ -1213,7 +1230,6 @@ void stopRecording()
     #endif
     // Save macros to EEPROM
     saveMacrosToEEPROM();
-    interrupts(); // Enable interrupts to exit critical section
   }
 }
 
@@ -1227,16 +1243,13 @@ void resetMacros()
 #if DEBUG_MODE
   Serial.println("Reset macros");
 #endif
-  noInterrupts(); // Disable interrupts to enter critical section
   stopAllMacros();
   cleanMacros();
   saveMacrosToEEPROM();
-  interrupts(); // Enable interrupts to exit critical section
 }
 
 void playMacroSlot(uint8_t slot)
 {
-  noInterrupts(); // Disable interrupts to enter critical section
   if (!recording && !macroPlayStatus[slot].playing && nMacrosPlaying() < CONCURENT_MACROS)
   {
 #if DEBUG_MODE
@@ -1268,7 +1281,6 @@ void playMacroSlot(uint8_t slot)
     macroPlayStatus[slot].playStartTime = 0;
     releaseAllMacro();
   }
-  interrupts(); // Enable interrupts to exit critical section
 }
 
 // Check if any macro is playing
@@ -1333,7 +1345,7 @@ void playMacro()
       {
         uint32_t nextDelay = macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].delay;
         if(robotMacroMode){
-          nextDelay = macroPlayStatus[macro_slot].macroIndex * 2; //slot times 2ms delay
+          nextDelay = macroPlayStatus[macro_slot].macroIndex * MACRO_DELAY; //slot times MACRO_DELAY
         }  
         // Process Key Events if delay has passed
         while (macroPlayStatus[macro_slot].macroIndex < macros[macro_slot].length &&
@@ -1351,7 +1363,7 @@ void playMacro()
           macroPlayStatus[macro_slot].macroIndex++;
           if(macroPlayStatus[macro_slot].macroIndex < macros[macro_slot].length){
             if(robotMacroMode){
-              nextDelay = macroPlayStatus[macro_slot].macroIndex * 2;
+              nextDelay = macroPlayStatus[macro_slot].macroIndex * MACRO_DELAY;
             }
             else{
               nextDelay = macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].delay;
@@ -1388,7 +1400,6 @@ void record_key(uint8_t keycode, bool isPressed)
 {
   if (recording && recordingSlot && recordingMacroIndex < MAX_MACRO_LENGTH)
   {
-    noInterrupts(); // Disable interrupts to enter critical section
 #if DEBUG_MODE
     Serial.print("Recording key report at index: ");
     Serial.println(recordingMacroIndex);
@@ -1402,10 +1413,6 @@ void record_key(uint8_t keycode, bool isPressed)
     if (recordingMacroIndex >= MAX_MACRO_LENGTH)
     {
       stopRecording();
-    }
-    else
-    {
-      interrupts(); // Enable interrupts to exit critical section
     }
   }
 }

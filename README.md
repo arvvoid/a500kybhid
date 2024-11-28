@@ -102,6 +102,16 @@ bit, or 17 kbits/sec.
 
 Credit: [AmigaOS Wiki](https://wiki.amigaos.net/wiki/Keyboard_Device)
 
+## Responsiveness
+
+Average from key press to release in normal use: ~66 ms
+
+Mostly due to the old membrane keys themselves. Keys have long travel time and need some force in the press. There is lot of variability for this reason.
+
+Minimum natural key press/release i achieved is: ~20 ms (very light press/tap to reduce key travel time)
+
+Worst was: ~398 ms (heavy strong key press)
+
 ## Help Key Special Functions
 
 The **Help** key on the Amiga 500 keyboard is used as a modifier in this implementation, enabling additional functions when combined with other keys. Below are the available combinations and their corresponding functions.
@@ -169,7 +179,7 @@ There are 5 macro slots available, each capable of storing up to 32 key events. 
 1. **Play a Macro**:
    - Press **Help + F6** to **Help + F10** to play the macro stored in the corresponding slot (slots 1 to 5).
    - The macro will replay the recorded key presses/releases with the original timing by default.
-   - If Robot Macro Mode is on (toggle with **HELP + R**), the macro is played with 2ms intervals between key events instead of the original timings. In this mode, a macro with 32 key events will play one cycle in approximately 64 ms.
+   - If Robot Macro Mode is on (toggle with **HELP + R**), the macro is played with minimal interval between key events.
 
 2. **Activate Looping**:
    - Press **Help + F5** to toggle looping mode for macros.
@@ -398,5 +408,3 @@ The **Arduino IDE** provides a graphical interface for writing, compiling, and u
 ## TODO
 
 - [ ] Add an optional Piezo Buzzer to the Leonardo for audio feedback, providing better user experience during macro recording.
-- [ ] Multiple layouts.
-- [ ] Remap any key on the fly
