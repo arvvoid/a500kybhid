@@ -926,7 +926,7 @@ void processKeyCode(uint8_t keyCode, bool isPressed)
     return;
   }
 
-  if (isPressed && keyCode == AMIGA_KEY_CAPS_LOCK)
+  if (keyCode == AMIGA_KEY_CAPS_LOCK)
   {
     // CapsLock key
     keystroke(0x39, 0x00);
@@ -951,20 +951,20 @@ void processKeyCode(uint8_t keyCode, bool isPressed)
     return;
   }
 
-  if (isPressed && recording && !recordingSlot)
+  if (recording && !recordingSlot)
   {
-    if (keyCode >= AMIGA_KEY_F6 && keyCode <= AMIGA_KEY_F10)
+    if (isPressed && keyCode >= AMIGA_KEY_F6 && keyCode <= AMIGA_KEY_F10)
     {
       recordingMacroSlot = macroSlotFromKeyCode(keyCode);
       memset(&macros[recordingMacroSlot], 0, sizeof(macros[recordingMacroSlot])); // Clear macro slot
       recordingMacroIndex = 0;
       recordingSlot = true;
+      ignoreNextRelease = keyCode;
       #if DEBUG_MODE
       Serial.print("Recording slot selected: ");
       Serial.println(recordingMacroSlot, HEX);
       #endif
     }
-    ignoreNextRelease = keyCode;
     return;
   }
 
