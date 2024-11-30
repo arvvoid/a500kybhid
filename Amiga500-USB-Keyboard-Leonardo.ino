@@ -1,41 +1,52 @@
 /*
+ * SPDX-License-Identifier: MIT
  * Amiga 500 Keyboard to USB HID Converter Arduino Leonardo
- * This rewrite/update and version (c) 2024 by Luka "Void" MIT License
+ * Copyright (c) 2024 by Luka "Void" MIT License
  * GitHub: https://github.com/arvvoid/
  * Contact: luka@lukavoid.xyz
+ * Repository: https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo
  * Original code and inspiration by olaf, Steve_Reaver (taken from https://forum.arduino.cc/index.php?topic=139358.15)
  *
  * This sketch converts an original Amiga 500 keyboard to a standard USB HID
  * keyboard using an Arduino Leonardo. It includes support for joystick inputs
  * and special function keys.
+ *
+ * Readme: https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/blob/main/README.md
  */
 
 #include <Keyboard.h>
 #include <HID.h>
 
-// Preprocessor flag to enable or disable debug mode
-// Debug mode provides verbose console output at every step.
-#define DEBUG_MODE 0
+// Preprocessor flag to enable or disable multimedia keys (Consumer device)
+// Multimedia keys are mapped to the Amiga 500 keyboard and can be used to control media playback.
+// NOTE: Do not modify Arduino core files; all necessary descriptors are added dynamically in setup() if this is enabled.
+#define ENABLE_MULTIMEDIA_KEYS 1
 
 // Preprocessor flag to enable or disable joystick support
 // Joystick support is only required if you are going to attach DB9 connectors and use legacy Amiga joysticks with the controller.
+// NOTE: Do not modify Arduino core files; all necessary descriptors are added dynamically in setup() if this is enabled.
 #define ENABLE_JOYSTICKS 0
-
-#define ENABLE_MULTIMEDIA_KEYS 1
 
 #define PERSISTENT_MACRO 1 // Save macros to EEPROM
 
-#define MAX_MACRO_LENGTH 24 // Maximum number of key reports in a macro
-#define MACRO_SLOTS 5
-#define MACRO_DELAY 100    // ms between reports in macro playback
-#define CONCURENT_MACROS 1 // Allow multiple macros to be played at the same time
-#define MACRO_SAVE_VERSION 2
+#define MAX_MACRO_LENGTH 32  // Maximum number of key events in a macro (6 bytes per event)
+#define MACRO_SLOTS 5        // Number of macro slots available, each slot is (6 bytes * MAX_MACRO_LENGTH) + 1 byte for length
+                             // current defaults fit in 1kb eeprom for persistent macros
+                             // If default values are changed and the size of eeprom is exceed,
+                             // macros and the keyboard will still work if enough sram
+                             // but macros will not be persistent anymore
+                             // because the macro save to eeprom function will gracefully cancel if 1kb is exceeded
+#define MACRO_DELAY 20       // ms between macro processing loops non blocking (at every loop all eligible key events in the delay window are processed)
+#define CONCURENT_MACROS 2   // How many macros can be played at the same time
+#define MACRO_ROBOT_MODE_DEFAULT false // false = normal mode (real recorded delays between key events), true = robot mode (minimal regular delays between key events)
+#define MACRO_SAVE_VERSION 4 // Version of the saved macros
 
-#define PROGRAMMATIC_KEYS_RELEASE 2 // delay between press and release on programmatic keys (send keystrokes, macros...)
+#define PROGRAMMATIC_KEYS_RELEASE 2 // delay in ms between press and release on programmatic keys (sent keystrokes)
 
 #if PERSISTENT_MACRO
 #include <EEPROM.h>
 #define EEPROM_START_ADDRESS 0
+#define SIZE_OF_EEPROM 1024 // 1kb
 #endif
 
 // Define bit masks for keyboard and joystick inputs
@@ -46,6 +57,23 @@
 #define BITMASK_JOY1 0b10011111 // IO 0..4,6
 #define BITMASK_JOY2 0b11110011 // IO A0..A5
 #endif
+
+#define MIN_HANDSHAKE_WAIT_TIME 65 //microsecconds: as specified in the Amiga 500 Technical Reference Manual
+
+// Preprocessor flag to enable or disable debug mode
+// Debug mode provides some console output.
+// It can interfere with the keyboard operation, so it is recommended to disable it when not needed.
+#define DEBUG_MODE 0
+
+enum UsedHIDDescriptors
+{
+  HID_ID_KEYBOARD = 2, // Default HID ID for keyboard (from Keyboard.h)
+  HID_ID_JOYSTICK1,    // Custom HID ID for Joystick 1 descriptor, added in setup()
+  HID_ID_JOYSTICK2,    // Custom HID ID for Joystick 2 descriptor, added in setup()
+  HID_ID_MULTIMEDIA,   // Custom HID ID for Consumer device descriptor, added in setup()
+  HID_ID_MACROVKEYS,   // Custom HID ID for Macro Virtual Keyboard, added in setup()
+};
+// NOTE: Do not modify Arduino core files; all necessary descriptors are added dynamically in setup()
 
 enum AmigaKeys
 { // ROM Default (USA0) and USA1 Console Key Mapping
@@ -291,6 +319,14 @@ const uint8_t keyTable[AMIGA_KEY_COUNT] = {
     0x10  // 0x67: AMIGA_KEY_AMIGA_RIGHT                 -> HID KEY_MODIFIER_RIGHT_CONTROL
 };
 
+const uint8_t specialKeys[] = {
+  AMIGA_KEY_HELP,
+  AMIGA_KEY_CAPS_LOCK,
+  AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN,
+  AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN,
+  // Add other special keys here
+};
+
 enum MultimediaKey
 {
   MMKEY_NEXT_TRACK = 1 << 0, // 0x01
@@ -313,11 +349,18 @@ enum KeyboardState
   WAIT_RES
 };
 
-// Macro structure
+// Macro structures
+struct MacroKeyEvent
+{
+  uint8_t keyCode; // 1 byte
+  bool isPressed;  // 1 byte
+  uint32_t delay;  // 4 bytes
+};
+
 struct Macro
 {
-  KeyReport keyReports[MAX_MACRO_LENGTH];
-  uint8_t length;
+  MacroKeyEvent keyEvents[MAX_MACRO_LENGTH]; // 6 bytes * MAX_MACRO_LENGTH
+  uint8_t length;                            // 1 byte
 };
 
 struct MacroPlayStatus
@@ -325,7 +368,45 @@ struct MacroPlayStatus
   bool playing;
   bool loop;
   uint8_t macroIndex;
+  uint32_t playStartTime;
 };
+
+bool robotMacroMode=MACRO_ROBOT_MODE_DEFAULT;
+
+static const uint8_t macroKeyboardDescriptor[] PROGMEM = {
+
+    //  Keyboard
+    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)  // 47
+    0x09, 0x06,                    // USAGE (Keyboard)
+    0xa1, 0x01,                    // COLLECTION (Application)
+    0x85, HID_ID_MACROVKEYS,       //   REPORT_ID
+    0x05, 0x07,                    //   USAGE_PAGE (Keyboard)
+
+    0x19, 0xe0,                    //   USAGE_MINIMUM (Keyboard LeftControl)
+    0x29, 0xe7,                    //   USAGE_MAXIMUM (Keyboard Right GUI)
+    0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+    0x25, 0x01,                    //   LOGICAL_MAXIMUM (1)
+    0x75, 0x01,                    //   REPORT_SIZE (1)
+
+    0x95, 0x08,                    //   REPORT_COUNT (8)
+    0x81, 0x02,                    //   INPUT (Data,Var,Abs)
+    0x95, 0x01,                    //   REPORT_COUNT (1)
+    0x75, 0x08,                    //   REPORT_SIZE (8)
+    0x81, 0x03,                    //   INPUT (Cnst,Var,Abs)
+
+    0x95, 0x06,                    //   REPORT_COUNT (6)
+    0x75, 0x08,                    //   REPORT_SIZE (8)
+    0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+    0x25, 0x73,                    //   LOGICAL_MAXIMUM (115)
+    0x05, 0x07,                    //   USAGE_PAGE (Keyboard)
+
+    0x19, 0x00,                    //   USAGE_MINIMUM (Reserved (no event indicated))
+    0x29, 0x73,                    //   USAGE_MAXIMUM (Keyboard Application)
+    0x81, 0x00,                    //   INPUT (Data,Ary,Abs)
+    0xc0,                          // END_COLLECTION
+};
+
+HIDSubDescriptor macroKeyboardHID(macroKeyboardDescriptor, sizeof(macroKeyboardDescriptor));
 
 struct MultimediaKeyReport
 {
@@ -333,19 +414,21 @@ struct MultimediaKeyReport
   uint8_t keys;
 };
 
-MultimediaKeyReport multimediaKeyReport = {5, 0};
+MultimediaKeyReport multimediaKeyReport = {HID_ID_MULTIMEDIA, 0};
 
 // Global variables
 KeyReport keyReport;
 KeyReport prevkeyReport;
-uint32_t handshakeTimer = 0;
-Macro macros[MACRO_SLOTS]; // 5 macro slots
-MacroPlayStatus macroPlayStatus[MACRO_SLOTS];
+KeyReport macroKeyReport;
+KeyReport macroPrevkeyReport;
+
 bool recording = false;
 bool recordingSlot = false;
 bool macro_looping = false;
 uint8_t recordingMacroSlot = 0;
 uint8_t recordingMacroIndex = 0;
+Macro macros[MACRO_SLOTS]; // 5 macro slots
+MacroPlayStatus macroPlayStatus[MACRO_SLOTS];
 
 #if ENABLE_JOYSTICKS
 // Joystick states
@@ -355,55 +438,55 @@ uint8_t previousJoy1State = 0xFF; // Initialize to 0xFF so that initial state tr
 uint8_t previousJoy2State = 0xFF;
 
 const uint8_t joystick1Descriptor[] PROGMEM = {
-    0x05, 0x01, // USAGE_PAGE (Generic Desktop)
-    0x09, 0x05, // USAGE (Game Pad)
-    0xA1, 0x01, // COLLECTION (Application)
-    0x85, 0x03, // REPORT_ID (3)
-    0x09, 0x01, // USAGE (Pointer)
-    0xA1, 0x00, // COLLECTION (Physical)
-    0x09, 0x30, // USAGE (X)
-    0x09, 0x31, // USAGE (Y)
-    0x15, 0xFF, // LOGICAL_MINIMUM (-1)
-    0x25, 0x01, // LOGICAL_MAXIMUM (1)
-    0x95, 0x02, // REPORT_COUNT (2)
-    0x75, 0x02, // REPORT_SIZE (2)
-    0x81, 0x02, // INPUT (Data,Var,Abs)
-    0xC0,       // END_COLLECTION
-    0x05, 0x09, // USAGE_PAGE (Button)
-    0x19, 0x01, // USAGE_MINIMUM (Button 1)
-    0x29, 0x02, // USAGE_MAXIMUM (Button 2)
-    0x15, 0x00, // LOGICAL_MINIMUM (0)
-    0x25, 0x01, // LOGICAL_MAXIMUM (1)
-    0x95, 0x02, // REPORT_COUNT (2)
-    0x75, 0x01, // REPORT_SIZE (1)
-    0x81, 0x02, // INPUT (Data,Var,Abs)
-    0xC0        // END_COLLECTION
+    0x05, 0x01,             // USAGE_PAGE (Generic Desktop)
+    0x09, 0x05,             // USAGE (Game Pad)
+    0xA1, 0x01,             // COLLECTION (Application)
+    0x85, HID_ID_JOYSTICK1, // REPORT_ID
+    0x09, 0x01,             // USAGE (Pointer)
+    0xA1, 0x00,             // COLLECTION (Physical)
+    0x09, 0x30,             // USAGE (X)
+    0x09, 0x31,             // USAGE (Y)
+    0x15, 0xFF,             // LOGICAL_MINIMUM (-1)
+    0x25, 0x01,             // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,             // REPORT_COUNT (2)
+    0x75, 0x02,             // REPORT_SIZE (2)
+    0x81, 0x02,             // INPUT (Data,Var,Abs)
+    0xC0,                   // END_COLLECTION
+    0x05, 0x09,             // USAGE_PAGE (Button)
+    0x19, 0x01,             // USAGE_MINIMUM (Button 1)
+    0x29, 0x02,             // USAGE_MAXIMUM (Button 2)
+    0x15, 0x00,             // LOGICAL_MINIMUM (0)
+    0x25, 0x01,             // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,             // REPORT_COUNT (2)
+    0x75, 0x01,             // REPORT_SIZE (1)
+    0x81, 0x02,             // INPUT (Data,Var,Abs)
+    0xC0                    // END_COLLECTION
 };
 
 const uint8_t joystick2Descriptor[] PROGMEM = {
-    0x05, 0x01, // USAGE_PAGE (Generic Desktop)
-    0x09, 0x05, // USAGE (Game Pad)
-    0xA1, 0x01, // COLLECTION (Application)
-    0x85, 0x04, // REPORT_ID (4)
-    0x09, 0x01, // USAGE (Pointer)
-    0xA1, 0x00, // COLLECTION (Physical)
-    0x09, 0x30, // USAGE (X)
-    0x09, 0x31, // USAGE (Y)
-    0x15, 0xFF, // LOGICAL_MINIMUM (-1)
-    0x25, 0x01, // LOGICAL_MAXIMUM (1)
-    0x95, 0x02, // REPORT_COUNT (2)
-    0x75, 0x02, // REPORT_SIZE (2)
-    0x81, 0x02, // INPUT (Data,Var,Abs)
-    0xC0,       // END_COLLECTION
-    0x05, 0x09, // USAGE_PAGE (Button)
-    0x19, 0x01, // USAGE_MINIMUM (Button 1)
-    0x29, 0x02, // USAGE_MAXIMUM (Button 2)
-    0x15, 0x00, // LOGICAL_MINIMUM (0)
-    0x25, 0x01, // LOGICAL_MAXIMUM (1)
-    0x95, 0x02, // REPORT_COUNT (2)
-    0x75, 0x01, // REPORT_SIZE (1)
-    0x81, 0x02, // INPUT (Data,Var,Abs)
-    0xC0        // END_COLLECTION
+    0x05, 0x01,             // USAGE_PAGE (Generic Desktop)
+    0x09, 0x05,             // USAGE (Game Pad)
+    0xA1, 0x01,             // COLLECTION (Application)
+    0x85, HID_ID_JOYSTICK2, // REPORT_ID
+    0x09, 0x01,             // USAGE (Pointer)
+    0xA1, 0x00,             // COLLECTION (Physical)
+    0x09, 0x30,             // USAGE (X)
+    0x09, 0x31,             // USAGE (Y)
+    0x15, 0xFF,             // LOGICAL_MINIMUM (-1)
+    0x25, 0x01,             // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,             // REPORT_COUNT (2)
+    0x75, 0x02,             // REPORT_SIZE (2)
+    0x81, 0x02,             // INPUT (Data,Var,Abs)
+    0xC0,                   // END_COLLECTION
+    0x05, 0x09,             // USAGE_PAGE (Button)
+    0x19, 0x01,             // USAGE_MINIMUM (Button 1)
+    0x29, 0x02,             // USAGE_MAXIMUM (Button 2)
+    0x15, 0x00,             // LOGICAL_MINIMUM (0)
+    0x25, 0x01,             // LOGICAL_MAXIMUM (1)
+    0x95, 0x02,             // REPORT_COUNT (2)
+    0x75, 0x01,             // REPORT_SIZE (1)
+    0x81, 0x02,             // INPUT (Data,Var,Abs)
+    0xC0                    // END_COLLECTION
 };
 
 // Wrap Descriptors in HIDSubDescriptor
@@ -413,37 +496,33 @@ HIDSubDescriptor joystick2HID(joystick2Descriptor, sizeof(joystick2Descriptor));
 
 #if ENABLE_MULTIMEDIA_KEYS
 const uint8_t multimediaDescriptor[] PROGMEM = {
-    0x05, 0x0C, // USAGE_PAGE (Consumer Devices)
-    0x09, 0x01, // USAGE (Consumer Control)
-    0xA1, 0x01, // COLLECTION (Application)
-    0x85, 0x05, // REPORT_ID (5)
-    0x15, 0x00, // LOGICAL_MINIMUM (0)
-    0x25, 0x01, // LOGICAL_MAXIMUM (1)
-    0x75, 0x01, // REPORT_SIZE (1)
-    0x95, 0x07, // REPORT_COUNT (7)
-    0x09, 0xB5, // USAGE (Next Track)
-    0x09, 0xB6, // USAGE (Previous Track)
-    0x09, 0xB7, // USAGE (Stop)
-    0x09, 0xCD, // USAGE (Play/Pause)
-    0x09, 0xE2, // USAGE (Mute)
-    0x09, 0xE9, // USAGE (Volume Up)
-    0x09, 0xEA, // USAGE (Volume Down)
-    0x81, 0x02, // INPUT (Data,Var,Abs)
-    0x95, 0x01, // REPORT_COUNT (1)
-    0x75, 0x01, // REPORT_SIZE (1)
-    0x81, 0x03, // INPUT (Const,Var,Abs) - Padding
-    0xC0        // END_COLLECTION
+    0x05, 0x0C,              // USAGE_PAGE (Consumer Devices)
+    0x09, 0x01,              // USAGE (Consumer Control)
+    0xA1, 0x01,              // COLLECTION (Application)
+    0x85, HID_ID_MULTIMEDIA, // REPORT_ID (5)
+    0x15, 0x00,              // LOGICAL_MINIMUM (0)
+    0x25, 0x01,              // LOGICAL_MAXIMUM (1)
+    0x75, 0x01,              // REPORT_SIZE (1)
+    0x95, 0x07,              // REPORT_COUNT (7)
+    0x09, 0xB5,              // USAGE (Next Track)
+    0x09, 0xB6,              // USAGE (Previous Track)
+    0x09, 0xB7,              // USAGE (Stop)
+    0x09, 0xCD,              // USAGE (Play/Pause)
+    0x09, 0xE2,              // USAGE (Mute)
+    0x09, 0xE9,              // USAGE (Volume Up)
+    0x09, 0xEA,              // USAGE (Volume Down)
+    0x81, 0x02,              // INPUT (Data,Var,Abs)
+    0x95, 0x01,              // REPORT_COUNT (1)
+    0x75, 0x01,              // REPORT_SIZE (1)
+    0x81, 0x03,              // INPUT (Const,Var,Abs) - Padding
+    0xC0                     // END_COLLECTION
 };
 
 HIDSubDescriptor multimediaHID(multimediaDescriptor, sizeof(multimediaDescriptor));
 #endif
 
-// Keyboard state machine variables
-KeyboardState keyboardState = SYNCH_HI;
-uint8_t bitIndex = 0;
-uint8_t currentKeyCode = 0;
+// Keyboard state variables
 bool functionMode = false; // Indicates if 'Help' key is active
-bool isKeyDown = false;
 
 #if PERSISTENT_MACRO
 // Function to calculate macros checksum
@@ -474,16 +553,30 @@ void saveMacrosToEEPROM()
 #if DEBUG_MODE
   Serial.println("Saving macros to EEPROM");
 #endif
+  size_t size_of_macros = sizeof(macros);
+
+  // check that it doesn't exceed 1kb of eeprom
+  // we add size of size_t, 1 bytes for the save version ad 4 bytes for the checksum
+  if (size_of_macros + sizeof(size_t) + sizeof(uint8_t) + sizeof(uint32_t) > SIZE_OF_EEPROM)
+  {
+#if DEBUG_MODE
+    Serial.println("Size of macros exceeds 1kb of EEPROM, not saving");
+#endif
+    return;
+  }
+
   int address = EEPROM_START_ADDRESS;
   uint8_t save_version = MACRO_SAVE_VERSION;
   EEPROM.put(address, save_version);
   address += sizeof(save_version);
+  EEPROM.put(address, size_of_macros);
+  address += sizeof(size_of_macros);
   for (int i = 0; i < MACRO_SLOTS; i++)
   {
     for (int j = 0; j < MAX_MACRO_LENGTH; j++)
     {
-      EEPROM.put(address, macros[i].keyReports[j]);
-      address += sizeof(KeyReport);
+      EEPROM.put(address, macros[i].keyEvents[j]);
+      address += sizeof(MacroKeyEvent);
     }
     EEPROM.put(address, macros[i].length);
     address += sizeof(macros[i].length);
@@ -506,6 +599,9 @@ bool loadMacrosFromEEPROM()
   uint8_t save_version;
   EEPROM.get(address, save_version);
   address += sizeof(save_version);
+  size_t size_of_macros;
+  EEPROM.get(address, size_of_macros);
+  address += sizeof(size_of_macros);
   if (save_version != MACRO_SAVE_VERSION)
   {
 #if DEBUG_MODE
@@ -514,12 +610,20 @@ bool loadMacrosFromEEPROM()
     cleanMacros();
     return false;
   }
+  if (size_of_macros != sizeof(macros))
+  {
+#if DEBUG_MODE
+    Serial.println("Macro length mismatch, clearing macros");
+#endif
+    cleanMacros();
+    return false;
+  }
   for (int i = 0; i < MACRO_SLOTS; i++)
   {
     for (int j = 0; j < MAX_MACRO_LENGTH; j++)
     {
-      EEPROM.get(address, macros[i].keyReports[j]);
-      address += sizeof(KeyReport);
+      EEPROM.get(address, macros[i].keyEvents[j]);
+      address += sizeof(MacroKeyEvent);
     }
     EEPROM.get(address, macros[i].length);
     address += sizeof(macros[i].length);
@@ -553,6 +657,7 @@ bool loadMacrosFromEEPROM()
 }
 #endif
 
+
 void setup()
 {
 #if DEBUG_MODE
@@ -563,12 +668,13 @@ void setup()
   } // Wait for Serial to be ready
   Serial.println("Debug mode enabled");
 #endif
-  noInterrupts(); // Disable interrupts to enter critical section
   loadMacrosFromEEPROM();
-  interrupts(); // Enable interrupts to exit critical section
 
   memset(&keyReport, 0x00, sizeof(KeyReport));
   memset(&prevkeyReport, 0xFF, sizeof(KeyReport));
+
+  memset(&macroKeyReport, 0x00, sizeof(KeyReport));
+  memset(&macroPrevkeyReport, 0xFF, sizeof(KeyReport));
 
 #if ENABLE_JOYSTICKS
   HID().AppendDescriptor(&joystick1HID);
@@ -585,7 +691,7 @@ void setup()
 #if ENABLE_MULTIMEDIA_KEYS
   HID().AppendDescriptor(&multimediaHID);
 #endif
-
+  HID().AppendDescriptor(&macroKeyboardHID);
   // Initialize Keyboard (Port B)
   DDRB &= ~(BITMASK_A500CLK | BITMASK_A500SP | BITMASK_A500RES); // Set pins as INPUT
 }
@@ -606,7 +712,7 @@ void handleJoystick1()
   uint8_t currentJoyState = ~PIND & BITMASK_JOY1;
   if (currentJoyState != previousJoy1State)
   {
-    HID().SendReport(3, &currentJoyState, 1);
+    HID().SendReport(HID_ID_JOYSTICK1, &currentJoyState, 1);
     previousJoy1State = currentJoyState;
   }
 }
@@ -616,17 +722,21 @@ void handleJoystick2()
   uint8_t currentJoyState = ~PINF & BITMASK_JOY2;
   if (currentJoyState != previousJoy2State)
   {
-    HID().SendReport(4, &currentJoyState, 1);
+    HID().SendReport(HID_ID_JOYSTICK2, &currentJoyState, 1);
     previousJoy2State = currentJoyState;
   }
 }
 #endif
 
+// Function to handle keyboard events
 void handleKeyboard()
 {
-  uint8_t pinB = PINB;
+  static KeyboardState keyboardState = SYNCH_HI;
+  static uint32_t handshakeTimer = 0;
+  static uint8_t currentKeyCode = 0;
+  static uint8_t bitIndex = 0;
 
-  if (((pinB & BITMASK_A500RES) == 0) && keyboardState != WAIT_RES)
+  if (((PINB & BITMASK_A500RES) == 0) && keyboardState != WAIT_RES)
   {
     // Reset detected
     interrupts();
@@ -637,7 +747,7 @@ void handleKeyboard()
   else if (keyboardState == WAIT_RES)
   {
     // Waiting for reset end
-    if ((pinB & BITMASK_A500RES) != 0)
+    if ((PINB & BITMASK_A500RES) != 0)
     {
       keyboardState = SYNCH_HI;
     }
@@ -645,7 +755,7 @@ void handleKeyboard()
   else if (keyboardState == SYNCH_HI)
   {
     // Sync Pulse High
-    if ((pinB & BITMASK_A500CLK) == 0)
+    if ((PINB & BITMASK_A500CLK) == 0)
     {
       keyboardState = SYNCH_LO;
     }
@@ -653,7 +763,7 @@ void handleKeyboard()
   else if (keyboardState == SYNCH_LO)
   {
     // Sync Pulse Low
-    if ((pinB & BITMASK_A500CLK) != 0)
+    if ((PINB & BITMASK_A500CLK) != 0)
     {
       keyboardState = HANDSHAKE;
     }
@@ -665,9 +775,9 @@ void handleKeyboard()
     {
       DDRB |= BITMASK_A500SP;   // Set SP pin as OUTPUT
       PORTB &= ~BITMASK_A500SP; // Set SP pin LOW
-      handshakeTimer = millis();
+      handshakeTimer = micros();
     }
-    else if (millis() - handshakeTimer > 10)
+    else if (micros() - handshakeTimer > MIN_HANDSHAKE_WAIT_TIME)
     {
       handshakeTimer = 0;
       DDRB &= ~BITMASK_A500SP; // Set SP pin as INPUT
@@ -679,27 +789,27 @@ void handleKeyboard()
   else if (keyboardState == READ)
   {
     // Read key message (8 bits)
-    if ((pinB & BITMASK_A500CLK) != 0)
+    if ((PINB & BITMASK_A500CLK) != 0)
     {
       if (bitIndex--)
       {
-        currentKeyCode |= ((pinB & BITMASK_A500SP) == 0) << bitIndex; // Accumulate bits
+        currentKeyCode |= ((PINB & BITMASK_A500SP) == 0) << bitIndex; // Accumulate bits
         keyboardState = WAIT_LO;
       }
       else
       {
         // Read last bit (key down/up)
-        isKeyDown = ((pinB & BITMASK_A500SP) != 0); // true if key down
+        bool isKeyDown = ((PINB & BITMASK_A500SP) != 0); // true if key down
         interrupts();
         keyboardState = HANDSHAKE;
-        processKeyCode();
+        processKeyCode(currentKeyCode, isKeyDown);
       }
     }
   }
   else if (keyboardState == WAIT_LO)
   {
     // Waiting for the next bit
-    if ((pinB & BITMASK_A500CLK) == 0)
+    if ((PINB & BITMASK_A500CLK) == 0)
     {
       noInterrupts();
       keyboardState = READ;
@@ -720,8 +830,30 @@ void sendReport()
 {
   if (memcmp(&keyReport, &prevkeyReport, sizeof(KeyReport)) != 0)
   {
-    HID().SendReport(2, &keyReport, sizeof(KeyReport));
+    HID().SendReport(HID_ID_KEYBOARD, &keyReport, sizeof(KeyReport));
     memcpy(&prevkeyReport, &keyReport, sizeof(KeyReport));
+    #if DEBUG_MODE
+      Serial.println("Sent report ->>> ");
+      printKeyReport();
+    #endif
+  }
+}
+
+void resetReportMacro()
+{
+  macroKeyReport.modifiers = 0;
+  for (uint8_t i = 0; i < 6; i++)
+  {
+    macroKeyReport.keys[i] = 0;
+  }
+}
+
+void sendReportMacro()
+{
+  if (memcmp(&macroKeyReport, &macroPrevkeyReport, sizeof(KeyReport)) != 0)
+  {
+    HID().SendReport(HID_ID_MACROVKEYS, &macroKeyReport, sizeof(KeyReport));
+    memcpy(&macroPrevkeyReport, &macroKeyReport, sizeof(KeyReport));
   }
 }
 
@@ -730,6 +862,13 @@ void releaseAll()
   resetReport();
   sendReport();
 }
+
+void releaseAllMacro()
+{
+  resetReportMacro();
+  sendReportMacro();
+}
+
 
 void sendMultimediaKey(uint8_t keyBit)
 {
@@ -743,88 +882,113 @@ void releaseMultimediaKey(uint8_t keyBit)
   HID().SendReport(multimediaKeyReport.reportId, &multimediaKeyReport.keys, sizeof(multimediaKeyReport.keys));
 }
 
-void processKeyCode()
+bool isSpecialKey(uint8_t keyCode) {
+  for (uint8_t i = 0; i < sizeof(specialKeys) / sizeof(specialKeys[0]); i++) {
+    if (specialKeys[i] == keyCode) {
+      return true;
+    }
+  }
+  return false;
+}
+
+uint8_t ignoreNextRelease = 0;
+
+void processKeyCode(uint8_t keyCode, bool isPressed)
 {
-#if DEBUG_MODE
-  Serial.print("Processing key code: ");
-  Serial.println(currentKeyCode, HEX);
-#endif
-  if (currentKeyCode == AMIGA_KEY_HELP)
+  if (!(keyCode < AMIGA_KEY_COUNT))
+  {
+    return;
+  }
+
+  if (ignoreNextRelease > 0 && ignoreNextRelease == keyCode && !isPressed)
+  {
+    ignoreNextRelease = 0;
+    return;
+  }
+
+  #if DEBUG_MODE
+  if (isPressed)
+  {
+    Serial.println(" ");
+    Serial.print("Key Press: ");
+  }
+  else
+  {
+    Serial.print("Key Release: ");
+  }
+  Serial.println(keyCode, HEX);
+  #endif
+
+  if (keyCode == AMIGA_KEY_HELP)
   {
     // 'Help' key toggles function mode
-    functionMode = isKeyDown;
+    functionMode = isPressed;
+    return;
   }
-  else if (currentKeyCode == AMIGA_KEY_CAPS_LOCK)
+
+  if (keyCode == AMIGA_KEY_CAPS_LOCK)
   {
     // CapsLock key
     keystroke(0x39, 0x00);
     return;
   }
+
+  if (isPressed && keyCode == AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN)
+  {
+    keystroke(0x53, 0); // NumLock
+    return;
+  }
+  if (isPressed && keyCode == AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN)
+  {
+    keystroke(0x47, 0); // ScrollLock
+    return;
+  }
+
+  // Special function with 'Help' key
+  if (isPressed && functionMode)
+  {
+    handleFunctionModeKey(keyCode);
+    return;
+  }
+
+  if (recording && !recordingSlot)
+  {
+    if (isPressed && keyCode >= AMIGA_KEY_F6 && keyCode <= AMIGA_KEY_F10)
+    {
+      recordingMacroSlot = macroSlotFromKeyCode(keyCode);
+      memset(&macros[recordingMacroSlot], 0, sizeof(macros[recordingMacroSlot])); // Clear macro slot
+      recordingMacroIndex = 0;
+      recordingSlot = true;
+      ignoreNextRelease = keyCode;
+      #if DEBUG_MODE
+      Serial.print("Recording slot selected: ");
+      Serial.println(recordingMacroSlot, HEX);
+      #endif
+    }
+    return;
+  }
+
+  if (isPressed)
+  {
+    if (!isSpecialKey(keyCode))
+      keyPress(keyCode);
+  }
   else
   {
-    if (isKeyDown)
-    {
-      // Key down message received
-      if (functionMode)
-      {
-        // Special function with 'Help' key
-        handleFunctionModeKey();
-        return;
-      }
-      else
-      {
-
-        if (recording && !recordingSlot)
-        {
-          if (currentKeyCode >= AMIGA_KEY_F6 && currentKeyCode <= AMIGA_KEY_F10)
-          {
-            noInterrupts(); // Disable interrupts to enter critical section
-            recordingMacroSlot = macroSlotFromKeyCode(currentKeyCode);
-            memset(macros[recordingMacroSlot].keyReports, 0, sizeof(macros[recordingMacroSlot].keyReports)); // Clear macro slot
-            macros[recordingMacroSlot].length = 0;
-            recordingMacroIndex = 0;
-            recordingSlot = true;
-            interrupts(); // Enable interrupts to exit critical section
-#if DEBUG_MODE
-            Serial.print("Recording slot selected: ");
-            Serial.println(currentMacroSlot, HEX);
-#endif
-          }
-          return;
-        }
-
-        if (currentKeyCode == AMIGA_KEY_NUMPAD_NUMLOCK_LPAREN)
-        {
-          keystroke(0x53, 0); // NumLock
-        }
-        else if (currentKeyCode == AMIGA_KEY_NUMPAD_SCRLOCK_RPAREN)
-        {
-          keystroke(0x47, 0); // ScrollLock
-        }
-        else if (currentKeyCode < AMIGA_KEY_COUNT)
-        {
-          keyPress(currentKeyCode);
-        }
-      }
-    }
-    else
-    {
-      // Key release message received
-      if (currentKeyCode < AMIGA_KEY_COUNT)
-      {
-        keyRelease(currentKeyCode);
-      }
-    }
+    // Key release message received
+    if (!isSpecialKey(keyCode))
+      keyRelease(keyCode);
   }
 }
 
-void handleFunctionModeKey()
+void handleFunctionModeKey(uint8_t keyCode)
 {
-#if DEBUG_MODE
-  Serial.print("Handling function mode key: ");
-  Serial.println(currentKeyCode, HEX);
-#endif
-  switch (currentKeyCode)
+  #if DEBUG_MODE
+    Serial.print("Handling function mode key: ");
+    Serial.println(keyCode, HEX);
+  #endif
+  ignoreNextRelease = keyCode;
+  switch (keyCode)
   {
   case AMIGA_KEY_F1:
     keystroke(0x44, 0);
@@ -853,12 +1017,15 @@ void handleFunctionModeKey()
   case AMIGA_KEY_DELETE:
     resetMacros();
     break; // Help + Del: Stop any playing macro and reset all macros including eeprom
+  case AMIGA_KEY_R:
+    robotMacroMode = !robotMacroMode;
+    break; // Help + R: Toggle robot macro mode
   case AMIGA_KEY_F6:
   case AMIGA_KEY_F7:
   case AMIGA_KEY_F8:
   case AMIGA_KEY_F9:
   case AMIGA_KEY_F10:
-    playMacroSlot(macroSlotFromKeyCode(currentKeyCode));
+    playMacroSlot(macroSlotFromKeyCode(keyCode));
     break; // Help + F6 to F10: Play macro in corresponding slot
 #if ENABLE_MULTIMEDIA_KEYS
   case AMIGA_KEY_ARROW_UP:                // HELP + Arrow Up: Volume Up
@@ -907,10 +1074,7 @@ bool isAmigaModifierKey(uint8_t keyCode)
 
 void keyPress(uint8_t keyCode)
 {
-#if DEBUG_MODE
-  Serial.print("Key press: ");
-  Serial.println(keyCode, HEX);
-#endif
+  record_key(keyCode, true); // if macro recording on, record key
   uint8_t hidCode = keyTable[keyCode];
   if (isAmigaModifierKey(keyCode))
   {
@@ -928,18 +1092,11 @@ void keyPress(uint8_t keyCode)
     }
   }
   sendReport();
-#if DEBUG_MODE
-  printKeyReport();
-#endif
-  record_last_report();
 }
 
 void keyRelease(uint8_t keyCode)
 {
-#if DEBUG_MODE
-  Serial.print("Key release: ");
-  Serial.println(keyCode, HEX);
-#endif
+  record_key(keyCode, false); // if macro recording on, record key
   uint8_t hidCode = keyTable[keyCode];
   if (isAmigaModifierKey(keyCode))
   {
@@ -956,19 +1113,10 @@ void keyRelease(uint8_t keyCode)
     }
   }
   sendReport();
-#if DEBUG_MODE
-  printKeyReport();
-#endif
 }
 
 void keystroke(uint8_t keyCode, uint8_t modifiers)
 {
-#if DEBUG_MODE
-  Serial.print("Keystroke: ");
-  Serial.print(keyCode, HEX);
-  Serial.print(" with modifiers: ");
-  Serial.println(modifiers, HEX);
-#endif
   uint8_t originalModifiers = keyReport.modifiers;
   for (uint8_t i = 0; i < 6; i++)
   {
@@ -989,6 +1137,47 @@ void keystroke(uint8_t keyCode, uint8_t modifiers)
 #endif
 }
 
+void keyPressMacro(uint8_t keyCode)
+{
+  uint8_t hidCode = keyTable[keyCode];
+  if (isAmigaModifierKey(keyCode))
+  {
+    macroKeyReport.modifiers |= hidCode; // Modifier key
+  }
+  else
+  {
+    for (uint8_t i = 0; i < 6; i++)
+    {
+      if (macroKeyReport.keys[i] == 0)
+      {
+        macroKeyReport.keys[i] = hidCode;
+        break;
+      }
+    }
+  }
+  sendReportMacro();
+}
+
+void keyReleaseMacro(uint8_t keyCode)
+{
+  uint8_t hidCode = keyTable[keyCode];
+  if (isAmigaModifierKey(keyCode))
+  {
+    macroKeyReport.modifiers &= ~hidCode; // Modifier key
+  }
+  else
+  {
+    for (uint8_t i = 0; i < 6; i++)
+    {
+      if (macroKeyReport.keys[i] == hidCode)
+      {
+        macroKeyReport.keys[i] = 0;
+      }
+    }
+  }
+  sendReportMacro();
+}
+
 void multimediaKeystroke(uint8_t keyCode)
 {
   sendMultimediaKey(keyCode);
@@ -1003,13 +1192,11 @@ void startRecording()
 #if DEBUG_MODE
     Serial.println("Start recording macro");
 #endif
-    noInterrupts(); // Disable interrupts to enter critical section
     stopAllMacros();
     recordingMacroIndex = 0;
     recordingMacroSlot = 0;
     recordingSlot = false;
     recording = true;
-    interrupts(); // Enable interrupts to exit critical section
   }
 }
 
@@ -1020,22 +1207,35 @@ void stopRecording()
 #if DEBUG_MODE
     Serial.println("Stop recording macro");
 #endif
-    noInterrupts(); // Disable interrupts to enter critical section
     recording = false;
     recordingSlot = false;
+    // normalize delays in the macro
+    const uint32_t firstDelay = macros[recordingMacroSlot].keyEvents[0].delay;
+    for (int i = 0; i < macros[recordingMacroSlot].length; i++)
+    {
+      macros[recordingMacroSlot].keyEvents[i].delay -= firstDelay;
+    }
+    functionMode = false;
+    #if DEBUG_MODE
+    Serial.println("Recording of macro stopped:");
+    for (int i = 0; i < macros[recordingMacroSlot].length; i++)
+    {
+      Serial.print("-EVENT: ");
+      Serial.print(macros[recordingMacroSlot].keyEvents[i].isPressed);
+      Serial.print(" ");
+      Serial.print(macros[recordingMacroSlot].keyEvents[i].keyCode, HEX);
+      Serial.print(" ");
+      Serial.println(macros[recordingMacroSlot].keyEvents[i].delay);
+    }
+    #endif
     // Save macros to EEPROM
     saveMacrosToEEPROM();
-    interrupts(); // Enable interrupts to exit critical section
   }
 }
 
 void cleanMacros()
 {
-  for (int i = 0; i < MACRO_SLOTS; i++)
-  {
-    memset(macros[i].keyReports, 0, sizeof(macros[i].keyReports));
-    macros[i].length = 0;
-  }
+  memset(macros, 0x00, sizeof(macros));
 }
 
 void resetMacros()
@@ -1043,18 +1243,14 @@ void resetMacros()
 #if DEBUG_MODE
   Serial.println("Reset macros");
 #endif
-  noInterrupts(); // Disable interrupts to enter critical section
   stopAllMacros();
-  releaseAll();
   cleanMacros();
   saveMacrosToEEPROM();
-  interrupts(); // Enable interrupts to exit critical section
 }
 
 void playMacroSlot(uint8_t slot)
 {
-  noInterrupts(); // Disable interrupts to enter critical section
-  if (!macroPlayStatus[slot].playing && nMacrosPlaying() < CONCURENT_MACROS)
+  if (!recording && !macroPlayStatus[slot].playing && nMacrosPlaying() < CONCURENT_MACROS)
   {
 #if DEBUG_MODE
     Serial.print("Play macro slot: ");
@@ -1069,11 +1265,12 @@ void playMacroSlot(uint8_t slot)
     {
       macroPlayStatus[slot].loop = false;
     }
+    macroPlayStatus[slot].playStartTime = millis();
     macroPlayStatus[slot].playing = true;
   }
   else
   {
-// togle playing
+// toggle playing
 #if DEBUG_MODE
     Serial.print("Stop Play macro slot: ");
     Serial.println(slot);
@@ -1081,8 +1278,9 @@ void playMacroSlot(uint8_t slot)
     macroPlayStatus[slot].playing = false;
     macroPlayStatus[slot].loop = false;
     macroPlayStatus[slot].macroIndex = 0;
+    macroPlayStatus[slot].playStartTime = 0;
+    releaseAllMacro();
   }
-  interrupts(); // Enable interrupts to exit critical section
 }
 
 // Check if any macro is playing
@@ -1121,14 +1319,22 @@ void stopAllMacros()
       macroPlayStatus[i].playing = false;
       macroPlayStatus[i].loop = false;
       macroPlayStatus[i].macroIndex = 0;
+      macroPlayStatus[i].playStartTime = 0;
     }
   }
-  releaseAll();
+  releaseAllMacro();
 }
 
 void playMacro()
 {
+
+  if (recording)
+  {
+    return;
+  }
+
   static uint32_t lastMacroTime = 0;
+  const uint32_t currentTime = millis();
 
   if (millis() - lastMacroTime >= MACRO_DELAY)
   {
@@ -1137,58 +1343,32 @@ void playMacro()
       // Check if the macro is currently playing
       if (macroPlayStatus[macro_slot].playing)
       {
-        if (macroPlayStatus[macro_slot].macroIndex < macros[macro_slot].length)
+        uint32_t nextDelay = macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].delay;
+        if(robotMacroMode){
+          nextDelay = macroPlayStatus[macro_slot].macroIndex * MACRO_DELAY; //slot times MACRO_DELAY
+        }  
+        // Process Key Events if delay has passed
+        while (macroPlayStatus[macro_slot].macroIndex < macros[macro_slot].length &&
+              currentTime - macroPlayStatus[macro_slot].playStartTime >= nextDelay)
         {
-          // Add keys from the macro report
-          for (uint8_t i = 0; i < 6; i++)
+          if (macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].isPressed)
           {
-            uint8_t macroKey = macros[macro_slot].keyReports[macroPlayStatus[macro_slot].macroIndex].keys[i];
-            if (macroKey != 0)
-            {
-              // Find an empty slot in the merged report
-              for (uint8_t j = 0; j < 6; j++)
-              {
-                if (keyReport.keys[j] == 0)
-                {
-                  keyReport.keys[j] = macroKey;
-                  break;
-                }
-              }
-            }
+            keyPressMacro(macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].keyCode);
           }
-
-          // Merge modifiers
-          keyReport.modifiers |= macros[macro_slot].keyReports[macroPlayStatus[macro_slot].macroIndex].modifiers;
-
-          // Send the merged key report
-          sendReport();
-          delay(PROGRAMMATIC_KEYS_RELEASE);
-
-          // Remove the keys added by the macro
-          for (uint8_t i = 0; i < 6; i++)
+          else
           {
-            uint8_t macroKey = macros[macro_slot].keyReports[macroPlayStatus[macro_slot].macroIndex].keys[i];
-            if (macroKey != 0)
-            {
-              // Find and remove the key from the merged report
-              for (uint8_t j = 0; j < 6; j++)
-              {
-                if (keyReport.keys[j] == macroKey)
-                {
-                  keyReport.keys[j] = 0;
-                  break;
-                }
-              }
-            }
+            keyReleaseMacro(macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].keyCode);
           }
-
-          // Remove the modifiers added by the macro
-          keyReport.modifiers &= ~macros[macro_slot].keyReports[macroPlayStatus[macro_slot].macroIndex].modifiers;
-
-          // Send the updated report to release the keys
-          sendReport();
           // Move to the next report in the macro
           macroPlayStatus[macro_slot].macroIndex++;
+          if(macroPlayStatus[macro_slot].macroIndex < macros[macro_slot].length){
+            if(robotMacroMode){
+              nextDelay = macroPlayStatus[macro_slot].macroIndex * MACRO_DELAY;
+            }
+            else{
+              nextDelay = macros[macro_slot].keyEvents[macroPlayStatus[macro_slot].macroIndex].delay;
+            }
+          }
         }
 
         // Check if the macro has completed
@@ -1198,12 +1378,14 @@ void playMacro()
           {
             // Reset to the beginning of the macro if looping
             macroPlayStatus[macro_slot].macroIndex = 0;
+            macroPlayStatus[macro_slot].playStartTime = millis();
           }
           else
           {
             // Stop playing if not looping
             macroPlayStatus[macro_slot].playing = false;
             macroPlayStatus[macro_slot].macroIndex = 0;
+            macroPlayStatus[macro_slot].playStartTime = 0;
           }
         }
       }
@@ -1214,16 +1396,17 @@ void playMacro()
   }
 }
 
-void record_last_report()
+void record_key(uint8_t keycode, bool isPressed)
 {
   if (recording && recordingSlot && recordingMacroIndex < MAX_MACRO_LENGTH)
   {
-    noInterrupts(); // Disable interrupts to enter critical section
 #if DEBUG_MODE
     Serial.print("Recording key report at index: ");
-    Serial.println(macroIndex);
+    Serial.println(recordingMacroIndex);
 #endif
-    memcpy(&macros[recordingMacroSlot].keyReports[recordingMacroIndex], &keyReport, sizeof(KeyReport));
+    macros[recordingMacroSlot].keyEvents[recordingMacroIndex].isPressed = isPressed;
+    macros[recordingMacroSlot].keyEvents[recordingMacroIndex].keyCode = keycode;
+    macros[recordingMacroSlot].keyEvents[recordingMacroIndex].delay = millis();
     recordingMacroIndex++;
     macros[recordingMacroSlot].length = recordingMacroIndex;
     // Check if the last index was recorded
@@ -1231,16 +1414,12 @@ void record_last_report()
     {
       stopRecording();
     }
-    else
-    {
-      interrupts(); // Enable interrupts to exit critical section
-    }
   }
 }
 
 uint8_t macroSlotFromKeyCode(uint8_t keyCode)
 {
-  uint8_t slot = keyCode - 0x55;
+  uint8_t slot = keyCode - AMIGA_KEY_F6;
   if (slot >= MACRO_SLOTS)
   {
     slot = MACRO_SLOTS - 1; // Ensure it does not exceed the maximum slots

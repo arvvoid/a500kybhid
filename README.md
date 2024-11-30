@@ -52,47 +52,8 @@ To connect the Amiga 500 keyboard to the Arduino Leonardo, refer to the followin
 - **LED1 (Blue, Pin 7)**: Connects to **5V** for indicating power.
 - **LED2 (Purple, Pin 8)**: Not connected.
 
+
 Amiga keyboard specs: http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0173.html
-```
-The keyboard transmits 8-bit data words serially to the main unit. Before
-the transmission starts, both KCLK and KDAT are high.  The keyboard starts
-the transmission by putting out the first data bit (on KDAT), followed by
-a pulse on KCLK (low then high); then it puts out the second data bit and
-pulses KCLK until all eight data bits have been sent.  After the end of
-the last KCLK pulse, the keyboard pulls KDAT high again.
-
-When the computer has received the eighth bit, it must pulse KDAT low for
-at least 1 (one) microsecond, as a handshake signal to the keyboard.  The
-handshake detection on the keyboard end will typically use a hardware
-latch.  The keyboard must be able to detect pulses greater than or equal
-to 1 microsecond.  Software MUST pulse the line low for 85 microseconds to
-ensure compatibility with all keyboard models.
-
-All codes transmitted to the computer are rotated one bit before
-transmission.  The transmitted order is therefore 6-5-4-3-2-1-0-7. The
-reason for this is to transmit the  up/down flag  last, in order to cause
-a key-up code to be transmitted in case the keyboard is forced to restore
- lost sync  (explained in more detail below).
-
-The KDAT line is active low; that is, a high level (+5V) is interpreted as
-0, and a low level (0V) is interpreted as 1.
-
-             _____   ___   ___   ___   ___   ___   ___   ___   _________
-        KCLK      \_/   \_/   \_/   \_/   \_/   \_/   \_/   \_/
-             ___________________________________________________________
-        KDAT    \_____X_____X_____X_____X_____X_____X_____X_____/
-                  (6)   (5)   (4)   (3)   (2)   (1)   (0)   (7)
-
-                 First                                     Last
-                 sent                                      sent
-
-The keyboard processor sets the KDAT line about 20 microseconds before it
-pulls KCLK low.  KCLK stays low for about 20 microseconds, then goes high
-again.  The processor waits another 20 microseconds before changing KDAT.
-
-Therefore, the bit rate during transmission is about 60 microseconds per
-bit, or 17 kbits/sec.
-```
 
 ---
 
@@ -101,6 +62,16 @@ bit, or 17 kbits/sec.
 ![Amiga 500 Keyboard Layout](https://wiki.amigaos.net/w/images/7/79/DevFig7-1.png)
 
 Credit: [AmigaOS Wiki](https://wiki.amigaos.net/wiki/Keyboard_Device)
+
+## Responsiveness
+
+Average from key press to release in normal use: ~66 ms
+
+Mostly due to the old membrane keys themselves. Keys have long travel time and need some force in the press. There is lot of variability for this reason.
+
+Minimum natural key press/release i achieved is: ~20 ms (very light press/tap to reduce key travel time)
+
+Worst was: ~398 ms (heavy strong key press)
 
 ## Help Key Special Functions
 
@@ -115,6 +86,7 @@ The **Help** key on the Amiga 500 keyboard is used as a modifier in this impleme
 | **Help + F3**                 | Record macro           |
 | **Help + F4**                 | Save macro             |
 | **Help + F5**                 | Toggle looping macro   |
+| **Help + R**                  | Toggle robot macro mode|
 | **Help + Backspace**          | Stop all playing macros       |
 | **Help + Del**                | Reset all macros (delete all) |
 | **Help + F6**                 | Play macro slot 1      |
@@ -147,8 +119,8 @@ This section explains how to use the macro recording and playback functionality 
 
 ### Macro Slots
 
-There are 5 macro slots available, each capable of storing up to 24 key reports. The macros are stored in EEPROM, so they persist across power cycles.
-24 to keep withing the EEPROM 1kb size of the Leonardo. If you disable persistent macros flag you can go up to 45 per slot on the Leonardo but macros will not persist power cycles.
+There are 5 macro slots available, each capable of storing up to 32 key events. The macros are stored in EEPROM, so they persist across power cycles.
+32 to keep withing the EEPROM 1kb size of the Leonardo. If you disable persistent macros flag you can larger macros per slot but macros will not persist power cycles.
 
 ### **Recording a Macro**
 
@@ -167,16 +139,16 @@ There are 5 macro slots available, each capable of storing up to 24 key reports.
 
 1. **Play a Macro**:
    - Press **Help + F6** to **Help + F10** to play the macro stored in the corresponding slot (slots 1 to 5).
-   - The macro will replay the recorded key presses at fixed intervals.
+   - The macro will replay the recorded key presses/releases with the original timing by default.
+   - If Robot Macro Mode is on (toggle with **HELP + R**), the macro is played with minimal interval between key events.
 
-2. **Activate Looping** (BETA):
+2. **Activate Looping**:
    - Press **Help + F5** to toggle looping mode for macros.
    - When looping is active:
      - A macro will repeat continuously once started.
      - You can deactivate looping mode to allow other macros to play just once.
    - To stop a looping macro, press the corresponding slot key again (e.g., **Help + F6**) while the macro is playing.
    - **Note:** Running too many loops with many key presses may interfere with normal keyboard functionality and introduce delays to standard key presses. Use with caution.
-   - **Note:** This feature is work in progress
 
 3. **Stop All Macros**:
    - Press **Help + Backspace** to stop all currently playing macros.
@@ -200,7 +172,7 @@ There are 5 macro slots available, each capable of storing up to 24 key reports.
 ### Notes
 
 - Macros are stored in EEPROM, so they will persist across power cycles.
-- Each macro slot can store up to 24 key reports.
+- Each macro slot can store up to 32 key events.
 - The recording will stop automatically if the macro slot is full.
 
 # Build and Upload Guide
@@ -396,7 +368,4 @@ The **Arduino IDE** provides a graphical interface for writing, compiling, and u
 
 ## TODO
 
-- [ ] Implement a processing queue for managing keypresses efficiently.
 - [ ] Add an optional Piezo Buzzer to the Leonardo for audio feedback, providing better user experience during macro recording.
-- [ ] Multiple layouts.
-- [ ] Remap any key on the fly
