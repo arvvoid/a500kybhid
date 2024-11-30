@@ -16,7 +16,6 @@
 
 #include <Keyboard.h>
 #include <HID.h>
-#include <CircularBuffer.hpp>
 
 // Preprocessor flag to enable or disable multimedia keys (Consumer device)
 // Multimedia keys are mapped to the Amiga 500 keyboard and can be used to control media playback.
@@ -42,7 +41,6 @@
 #define MACRO_ROBOT_MODE_DEFAULT false // false = normal mode (real recorded delays between key events), true = robot mode (minimal regular delays between key events)
 #define MACRO_SAVE_VERSION 4 // Version of the saved macros
 
-#define LIVE_KEY_EVENT_BUFFER_SIZE 50 // Size of the buffer for live key events
 #define PROGRAMMATIC_KEYS_RELEASE 2 // delay in ms between press and release on programmatic keys (sent keystrokes)
 
 #if PERSISTENT_MACRO
@@ -350,14 +348,6 @@ enum KeyboardState
   WAIT_LO,
   WAIT_RES
 };
-
-struct lKeyEvent //live key event
-{
-  uint8_t keyCode;
-  bool isPressed;
-};
-
-CircularBuffer<lKeyEvent, LIVE_KEY_EVENT_BUFFER_SIZE> keysEvents;
 
 // Macro structures
 struct MacroKeyEvent
@@ -713,7 +703,6 @@ void loop()
   handleJoystick2();
 #endif
   handleKeyboard();
-  processKeyEvents();
   playMacro();
 }
 
@@ -738,24 +727,6 @@ void handleJoystick2()
   }
 }
 #endif
-
-void processKeyEvents()
-{
-  while (!keysEvents.isEmpty())
-  {
-    lKeyEvent keyEvent = keysEvents.shift(); // Remove the oldest element from the buffer
-    processKeyCode(keyEvent.keyCode, keyEvent.isPressed);
-  }
-}
-
-// Function to add key event to the buffer
-void addKeyEventToBuffer(uint8_t keyCode, bool isPressed)
-{
-  lKeyEvent event;
-  event.keyCode = keyCode;
-  event.isPressed = isPressed;
-  keysEvents.push(event); // Add the event to the buffer
-}
 
 // Function to handle keyboard events
 void handleKeyboard()
@@ -831,7 +802,7 @@ void handleKeyboard()
         bool isKeyDown = ((PINB & BITMASK_A500SP) != 0); // true if key down
         interrupts();
         keyboardState = HANDSHAKE;
-        addKeyEventToBuffer(currentKeyCode, isKeyDown);
+        processKeyCode(currentKeyCode, isKeyDown);
       }
     }
   }

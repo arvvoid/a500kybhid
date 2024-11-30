@@ -4,13 +4,13 @@
 BOARD_FQBN = arduino:avr:leonardo      # Fully Qualified Board Name for Arduino Leonardo
 SKETCH = Amiga500-USB-Keyboard-Leonardo.ino  # Path to sketch file
 BUILD_DIR = build                      # Directory for build artifacts
-LIBRARIES = Keyboard CircularBuffer    # List of required libraries
+LIBRARIES = Keyboard			       # List of required libraries
 CORE = arduino:avr                     # Required core
 
 # Commands
 ARDUINO_CLI = arduino-cli
 VERIFY_CMD = $(ARDUINO_CLI) compile --fqbn $(BOARD_FQBN) --warnings more --verify --build-path $(BUILD_DIR) $(SKETCH)
-UPLOAD_CMD = $(ARDUINO_CLI) upload --fqbn $(BOARD_FQBN) --input-dir $(BUILD_DIR) --port $(shell $(ARDUINO_CLI) board list | grep -m 1 tty | awk '{print $$1}')
+UPLOAD_CMD = $(ARDUINO_CLI) upload --fqbn $(BOARD_FQBN) --verbose --input-dir $(BUILD_DIR) --port $(shell $(ARDUINO_CLI) board list | grep -m 1 tty | awk '{print $$1}')
 INSTALL_LIBRARIES_CMD = $(ARDUINO_CLI) lib install $(LIBRARIES)
 UPDATE_CORES_LIBRARIES_CMD = $(ARDUINO_CLI) core update-index && $(ARDUINO_CLI) lib update-index && $(ARDUINO_CLI) core upgrade && $(ARDUINO_CLI) lib upgrade
 INSTALL_CORE_CMD = $(ARDUINO_CLI) core update-index && $(ARDUINO_CLI) core install $(CORE)
