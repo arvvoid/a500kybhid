@@ -62,6 +62,7 @@
 
 // Preprocessor flag to enable or disable debug mode
 // Debug mode provides some console output.
+// It can interfere with the keyboard operation, so it is recommended to disable it when not needed.
 #define DEBUG_MODE 0
 
 enum UsedHIDDescriptors
