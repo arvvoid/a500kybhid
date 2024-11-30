@@ -58,8 +58,7 @@
 #define BITMASK_JOY2 0b11110011 // IO A0..A5
 #endif
 
-#define MIN_HANDSHAKE_WAIT_TIME 700 //microsecconds: experimentally determined going lower that 600 can cause issues and noise,
-                                    //resulting in corrupted keypress. Added 100 as safety margin. This work stable.
+#define MIN_HANDSHAKE_WAIT_TIME 65 //microsecconds: as specified in the Amiga 500 Technical Reference Manual
 
 // Preprocessor flag to enable or disable debug mode
 // Debug mode provides some console output.
