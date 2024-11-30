@@ -52,7 +52,9 @@ To connect the Amiga 500 keyboard to the Arduino Leonardo, refer to the followin
 - **LED1 (Blue, Pin 7)**: Connects to **5V** for indicating power.
 - **LED2 (Purple, Pin 8)**: Not connected.
 
+
 Amiga keyboard specs: http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0173.html
+
 ---
 
 ## Amiga 500 Keyboard Layout
