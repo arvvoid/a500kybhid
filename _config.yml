@@ -4,8 +4,7 @@ remote_theme: julianolf/jekyll-theme-8bit
 title: Amiga 500 USB Keyboard
 description: Amiga 500 keyboard into a USB HID, allowing it to function as a modern USB keyboard. Using an Arduino Leonardo, which supports native USB communication, the sketch reads the Amiga 500 keyboard signals and translates them into USB keystrokes, preserving the vintage feel with modern compatibility.
 
-# Build settings
-markdown: kramdown
+show_downloads: true
 
 # Author settings
 author:
@@ -20,10 +19,3 @@ social:
 plugins:
   - jekyll-feed
   - jekyll-seo-tag
-
-# Defaults
-defaults:
-  - scope:
-      path: ""
-    values:
-      layout: "default"
