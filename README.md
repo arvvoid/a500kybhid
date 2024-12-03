@@ -1,4 +1,4 @@
-# Amiga 500 Keyboard - Arduino Leonardo
+# Amiga Keyboard to USB (HID) - ATmega32U4 (Arduino Leonardo, Micro, ...)
 
 [![Build Arduino Leonardo Kyb](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml)
 
