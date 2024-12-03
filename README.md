@@ -1,8 +1,13 @@
-# Amiga Keyboard to USB (HID) - ATmega32U4 (Arduino Leonardo, Micro, ...)
+# Amiga 500 Keyboard to USB (HID)
 
 [![Build Arduino Leonardo Kyb](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml)
 
-This guide will help you connect and map the iconic Amiga 500 keyboard to an Arduino Leonardo, allowing you to bring new life to this classic piece of hardware. By following the instructions provided, you can retrofit the Amiga 500 keyboard for modern applications while preserving its unique layout and feel.
+By following the provided instructions, you can retrofit the Amiga 500 keyboard for modern applications while preserving its unique layout and feel.
+
+This was developed and tested with an original Amiga 500 keyboard and an Arduino Leonardo board.
+Other combinations are not tested, other boards based on the ATmega32U4 microcontroller should work (wiring might need to be adapted).
+
+I own only an Amiga 500 (Mitsumi) keyboard, so I can't test other models, but other protocol-compatible models should work fine, though wiring (and/or keymap) might need to be adjusted.
 
 For a demonstration of the original Amiga 500 keyboard in action, visit the [Amiga Undead GitHub repository](https://github.com/arvvoid/amiga.undead).
 
