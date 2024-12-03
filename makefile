@@ -9,7 +9,7 @@ CORE = arduino:avr                     # Required core
 
 # Commands
 ARDUINO_CLI = arduino-cli
-VERIFY_CMD = $(ARDUINO_CLI) compile --fqbn $(BOARD_FQBN) --warnings more --verify --build-path $(BUILD_DIR) $(SKETCH)
+VERIFY_CMD = $(ARDUINO_CLI) compile --fqbn $(BOARD_FQBN) --clean --warnings more --verify --build-path $(BUILD_DIR) $(SKETCH)
 UPLOAD_CMD = $(ARDUINO_CLI) upload --fqbn $(BOARD_FQBN) --verbose --input-dir $(BUILD_DIR) --port $(shell $(ARDUINO_CLI) board list | grep -m 1 tty | awk '{print $$1}')
 INSTALL_LIBRARIES_CMD = $(ARDUINO_CLI) lib install $(LIBRARIES)
 UPDATE_CORES_LIBRARIES_CMD = $(ARDUINO_CLI) core update-index && $(ARDUINO_CLI) lib update-index && $(ARDUINO_CLI) core upgrade && $(ARDUINO_CLI) lib upgrade
