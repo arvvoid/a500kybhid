@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    tags:
+      - main
+  
   pull_request:
     branches:
       - main
@@ -30,3 +33,61 @@ jobs:
     - name: Compile Sketch
       run: |
         make verify
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: hex-files
+        path: ./build/*.hex
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/main')
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: hex-files
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: |
+          ## Changes
+          - Description of changes in this release.
+          
+          It is recommended and simple to build the firmware from source yourself by following the instructions in the README.
+
+          With `make upload` you can build and upload the firmware to your Arduino board just need arduino-cli installed.
+          Read instructions in README for more details.       
+
+          With that said, binaries are provided here for convenience.
+          
+          ## Installation Instructions
+          To upload the hex file to your Arduino board, follow these steps:
+          1. Download the hex file from the release assets.
+          2. Use a tool like [avrdude](https://github.com/avrdudes/avrdude) to upload the hex file to your board.
+          3. Example command for Arduino Leonardo:
+             ```
+             avrdude -v -patmega32u4 -cavr109 -P/dev/ttyACM0 -b57600 -D -Uflash:w:a500kybhid.hex:i
+             ```
+          4. Replace `/dev/ttyACM0` with the appropriate port for your system.
+          
+        draft: false
+        prerelease: true
+
+    - name: Upload Release Assets
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./build/a500kybhid.ino.hex
+        asset_name: a500kybhid.hex
+        asset_content_type: application/octet-stream
