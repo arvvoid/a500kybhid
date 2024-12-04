@@ -88,6 +88,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./hex-files/a500kybhid.ino.hex
+        asset_path: ./build/a500kybhid.ino.hex
         asset_name: a500kybhid.hex
         asset_content_type: application/octet-stream
