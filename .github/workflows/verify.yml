@@ -66,7 +66,7 @@ jobs:
           It is recommended and simple to build the firmware from source yourself by following the instructions in the README.
 
           With `make upload` you can build and upload the firmware to your Arduino board just need arduino-cli installed.
-          Read instructions in README for more details.       
+          Read instructions in [README](https://github.com/arvvoid/a500kybhid/blob/main/README.md#build-and-upload-guide) for more details.       
 
           With that said, binaries are provided here for convenience.
           
