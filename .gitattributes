@@ -1,4 +1,5 @@
 CNAME export-ignore
-_config export-ignore
+_config.yml export-ignore
 .gitignore export-ignore
+.gitattributes export-ignore
 .github/ export-ignore
