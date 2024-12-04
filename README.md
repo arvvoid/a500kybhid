@@ -1,6 +1,6 @@
 # Amiga 500 Keyboard to USB (HID)
 
-[![Build Arduino Leonardo Kyb](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/arvvoid/Amiga500-USB-Keyboard-Leonardo/actions/workflows/verify.yml)
+[![Build Arduino Leonardo Kyb](https://github.com/arvvoid/a500kybhid/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/arvvoid/a500kybhid/actions/workflows/verify.yml)
 
 By following the provided instructions, you can retrofit the Amiga 500 keyboard for modern applications while preserving its unique layout and feel.
 
