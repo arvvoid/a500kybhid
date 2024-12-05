@@ -7,7 +7,7 @@ By following the provided instructions, you can retrofit the Amiga 500 keyboard 
 This was developed and tested with an original Amiga 500 keyboard and an Arduino Leonardo board.
 Other combinations are not tested, other boards based on the ATmega32U4 microcontroller should work (wiring might need to be adapted).
 
-I own only an Amiga 500 (Mitsumi) keyboard, so I can't test other models, but other protocol-compatible models should work fine, though wiring (and/or keymap) might need to be adjusted.
+I own only an Amiga 500 (Mitsumi) keyboard, so I can't test other models, but other protocol-compatible models should work fine (500/1000/2000), though wiring (and/or keymap) might need to be adjusted.
 
 For a demonstration of the original Amiga 500 keyboard in action, visit the [Amiga Undead GitHub repository](https://github.com/arvvoid/amiga.undead).
 
