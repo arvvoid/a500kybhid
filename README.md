@@ -39,13 +39,13 @@ To connect the Amiga 500 keyboard to the Arduino Leonardo, refer to the followin
 
 | Connector Pin | Function | Wire Color | Arduino Leonardo IO Pin |
 |---------------|----------|------------|--------------------------|
-| 1             | KBDATA   | Black      | 8                        |
-| 2             | KBCLK    | Brown      | 9                        |
+| 1             | KBCLK    | Black      | 8                        |
+| 2             | KBDATA   | Brown      | 9                        |
 | 3             | KBRST    | Red        | 10                       |
 | 4             | 5V       | Orange     | 5V                       |
 | 5             | NC       | -          | -                        |
 | 6             | GND      | Green      | GND                      |
-| 7             | LED1     | Blue       | 5V                       |
+| 7             | LED1     | Blue       | 5V (Optional)            |
 | 8             | LED2     | Purple     | -                        |
 
 - **KBDATA (Black, Pin 1)**: Connects to Arduino Leonardo digital pin **8**. This line transmits data from the keyboard to the Arduino.
@@ -54,8 +54,8 @@ To connect the Amiga 500 keyboard to the Arduino Leonardo, refer to the followin
 - **5V (Orange, Pin 4)**: Connects to the **5V** power supply on the Arduino.
 - **NC (Pin 5)**: Not connected.
 - **GND (Green, Pin 6)**: Connects to the **GND** pin on the Arduino.
-- **LED1 (Blue, Pin 7)**: Connects to **5V** for indicating power.
-- **LED2 (Purple, Pin 8)**: Not connected.
+- **LED1 (Blue, Pin 7)**: Connects to **5V** for indicating power (Optional).
+- **LED2 (Purple, Pin 8)**: Not connected, activity indicator.
 
 
 Amiga keyboard specs: http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0173.html
