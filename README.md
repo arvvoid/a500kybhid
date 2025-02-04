@@ -48,8 +48,8 @@ To connect the Amiga 500 keyboard to the Arduino Leonardo, refer to the followin
 | 7             | LED1     | Blue       | 5V (Optional)            |
 | 8             | LED2     | Purple     | -                        |
 
-- **KBDATA (Black, Pin 1)**: Connects to Arduino Leonardo digital pin **8**. This line transmits data from the keyboard to the Arduino.
-- **KBCLK (Brown, Pin 2)**: Connects to Arduino Leonardo digital pin **9**. This line provides the clock signal for synchronization.
+- **KBCLK (Black, Pin 1)**: Connects to Arduino Leonardo digital pin **8**. This line provides the clock signal for synchronization.
+- **KBDATA (Brown, Pin 2)**: Connects to Arduino Leonardo digital pin **9**. This line transmits data from the keyboard to the Arduino.
 - **KBRST (Red, Pin 3)**: Connects to Arduino Leonardo digital pin **10**. This line allows the Arduino to send a reset signal to the keyboard.
 - **5V (Orange, Pin 4)**: Connects to the **5V** power supply on the Arduino.
 - **NC (Pin 5)**: Not connected.
