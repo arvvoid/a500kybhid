@@ -101,7 +101,7 @@
 #define BITMASK_JOY2 0b11110011 // IO A0..A5
 #endif
 
-#define MIN_HANDSHAKE_WAIT_TIME 65 //microsecconds: as specified in the Amiga 500 Technical Reference Manual
+#define MIN_HANDSHAKE_WAIT_TIME 85 //microsecconds: as specified in the Amiga 500 Technical Reference Manual
 
 // Preprocessor flag to enable or disable debug mode
 // Debug mode provides some console output.
